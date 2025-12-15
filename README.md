@@ -24,7 +24,6 @@ AI-powered leaf disease detection for farmers and plant lovers. Upload a leaf im
   - ⚛️ `React` 19
   - 🧩 `TypeScript`
   - 🎨 Tailwind CSS 4 (via `@tailwindcss/postcss`)
-  - 📜 `react-markdown` for rendering AI advice
 
 ---
 
@@ -76,6 +75,7 @@ cd LeafDoctor
 
 4. **Place the trained model file**:
 
+   - Download `plantvillage_mobilenet_model.h5` from this link: [Google Drive model file](https://drive.google.com/file/d/1Edi_jbPPv-z7E4SJoP-Wr9Ct719CM3nM/view?usp=sharing).
    - Put `plantvillage_mobilenet_model.h5` in the `backend/` directory (same folder as `main.py`).
 
 5. **Run the FastAPI server**:
