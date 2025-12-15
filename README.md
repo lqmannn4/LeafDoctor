@@ -65,7 +65,7 @@ cd LeafDoctor
    - Create a `.env` file inside `backend/`:
 
      ```bash
-echo GEMINI_API_KEY=your_api_key_here > .env
+      echo GEMINI_API_KEY=your_api_key_here > .env
      ```
 
    - Or create it manually with this content:
