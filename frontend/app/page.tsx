@@ -1,114 +1,215 @@
+"use client";
+
 import Link from "next/link";
-import Image from "next/image";
+import { motion } from "framer-motion";
+import { ArrowRight, Leaf, ShieldCheck, CloudSun, Activity, Upload, Stethoscope, Sprout, MessageSquare } from "lucide-react";
+
+// Animation variants
+const fadeInUp = {
+  initial: { opacity: 0, y: 20 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 0.5 }
+};
+
+const staggerContainer = {
+  animate: {
+    transition: {
+      staggerChildren: 0.1
+    }
+  }
+};
 
 export default function Home() {
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-green-900 via-green-950 to-black text-white">
-      {/* Hero Section */}
-      <header className="flex-1 flex flex-col items-center justify-center px-5 py-16 relative z-10">
-        <div className="w-full max-w-2xl text-center flex flex-col items-center">
-          <div className="mb-8">
-            <Image
-              src="/logo.png"
-              alt="LeafDoctor Logo"
-              width={120}
-              height={120}
-              className="rounded-full object-cover border-4 border-green-500 shadow-2xl"
-              style={{ width: "120px", height: "120px" }}
-            />
-          </div>  
-          <h1 className="text-4xl md:text-6xl font-bold mb-6 tracking-tight drop-shadow-[0_10px_16px_rgba(16,128,64,0.18)]">
-            Save Your Crops with <span className="text-green-400">AI Precision.</span>
-          </h1>
-          <p className="text-lg md:text-2xl text-gray-300 mb-10">
-            Instant disease diagnosis for <span className="text-green-200 font-medium">38 different plant types</span>.
-          </p>
-          <Link
-            href="/diagnosis"
-            className="relative transition hover:scale-105 focus:scale-105 active:scale-95 inline-block px-10 py-4 rounded-2xl shadow-lg text-xl font-bold text-gray-900 bg-green-400 hover:bg-green-500 focus:bg-green-500
-              before:absolute before:-inset-1 before:-z-10 before:rounded-[inherit]
-              before:bg-gradient-to-br before:from-green-500 before:to-green-600
-              before:blur-[6px] before:opacity-60 before:animate-pulse
-              "
-            style={{ boxShadow: "0 0 35px 6px rgba(34,197,94,0.32)" }}
-          >
-            Start Diagnosis
-          </Link>
-        </div>
-      </header>
+    <main className="relative min-h-screen font-sans text-slate-900 selection:bg-green-100 selection:text-green-900">
+      
+      {/* Global Background Layer */}
+      <div className="fixed inset-0 -z-10 h-full w-full bg-white">
+        <div className="absolute inset-0 bg-gradient-to-b from-white to-green-50/30" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[600px] bg-green-100/40 rounded-full blur-[100px] opacity-70" />
+        <div className="absolute bottom-0 right-0 w-[800px] h-[600px] bg-blue-50/40 rounded-full blur-[100px] opacity-60" />
+      </div>
 
-      {/* Features Section */}
-      <section className="max-w-5xl mx-auto px-6 py-16 md:py-24 grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-7">
-        {/* Feature 1 */}
-        <div className="bg-green-950/60 border border-green-900 rounded-2xl p-8 flex flex-col items-center shadow-md hover:shadow-lg transition-shadow">
-          <div className="mb-4 flex items-center justify-center w-12 h-12 rounded-full bg-green-800/70">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 28 28" className="h-7 w-7 text-green-300">
-              <path stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                d="M8.5 16.5L13 21l9-9.5M19.5 21H8a2 2 0 01-2-2V9a2 2 0 012-2h8" />
-            </svg>
-          </div>
-          <h3 className="font-semibold text-lg mb-2 text-green-200">Instant Analysis</h3>
-          <p className="text-gray-300 text-sm text-center">Upload a plant leaf and get results in seconds, right from your device.</p>
-        </div>
-        {/* Feature 2 */}
-        <div className="bg-green-950/60 border border-green-900 rounded-2xl p-8 flex flex-col items-center shadow-md hover:shadow-lg transition-shadow">
-          <div className="mb-4 flex items-center justify-center w-12 h-12 rounded-full bg-green-800/70">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 text-green-300" fill="none" viewBox="0 0 28 28">
-              <circle cx="14" cy="14" r="9" stroke="currentColor" strokeWidth="2" />
-              <path stroke="currentColor" strokeWidth="2" strokeLinecap="round"
-                d="M10 15.5l3 3 5-6.5" />
-            </svg>
-          </div>
-          <h3 className="font-semibold text-lg mb-2 text-green-200">90+ Accuracy</h3>
-          <p className="text-gray-300 text-sm text-center">Powered by advanced MobileNet AI, trusted in academic research.</p>
-        </div>
-        {/* Feature 3 */}
-        <div className="bg-green-950/60 border border-green-900 rounded-2xl p-8 flex flex-col items-center shadow-md hover:shadow-lg transition-shadow">
-          <div className="mb-4 flex items-center justify-center w-12 h-12 rounded-full bg-green-800/70">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 text-green-300" fill="none" viewBox="0 0 28 28">
-              <path stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M6 13v6a3 3 0 003 3h10a3 3 0 003-3v-6" />
-              <path stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M4 10V8a3 3 0 013-3h14a3 3 0 013 3v2" />
-              <rect width="20" height="6" x="4" y="10" rx="2" />
-            </svg>
-          </div>
-          <h3 className="font-semibold text-lg mb-2 text-green-200">Free to Use</h3>
-          <p className="text-gray-300 text-sm text-center">Completely free for all farmers and gardeners—no registration required.</p>
+      {/* Hero Section */}
+      <section className="relative pt-24 pb-16 lg:pt-36 lg:pb-24">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
+          
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/80 backdrop-blur-sm border border-green-200 text-green-700 text-sm font-medium mb-8 shadow-sm hover:shadow-md transition-shadow cursor-default"
+          >
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+            </span>
+            AI-Powered Plant Analysis v2.0
+          </motion.div>
+
+          <motion.h1 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+            className="text-5xl md:text-7xl font-extrabold tracking-tight text-slate-900 mb-6 max-w-4xl mx-auto"
+          >
+            Your Personal <br className="hidden md:block" />
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-600 to-emerald-500">
+              Plant Doctor
+            </span>
+          </motion.h1>
+
+          <motion.p 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+            className="mt-4 text-xl text-slate-600 max-w-2xl mx-auto mb-10 leading-relaxed"
+          >
+            Instantly diagnose diseases for 38+ crop types using advanced AI. 
+            Get precision treatment plans and weather insights in seconds.
+          </motion.p>
+
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.3 }}
+            className="flex flex-col sm:flex-row gap-4 justify-center items-center"
+          >
+            <Link
+              href="/diagnosis"
+              className="group relative px-8 py-4 text-lg font-bold rounded-full bg-green-600 text-white shadow-lg hover:bg-green-700 transition-all hover:shadow-green-200 hover:-translate-y-1 flex items-center gap-2"
+            >
+              Start Diagnosis
+              <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+            </Link>
+            <a
+              href="https://github.com/spMohanty/PlantVillage-Dataset"
+              target="_blank"
+              rel="noreferrer"
+              className="px-8 py-4 text-lg font-semibold rounded-full bg-white/50 backdrop-blur-sm border border-slate-200 text-slate-700 hover:bg-white/80 hover:border-slate-300 transition-all flex items-center gap-2"
+            >
+              View Dataset
+            </a>
+          </motion.div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="w-full border-t border-green-900 py-4 px-5 text-xs text-gray-400 bg-green-950/80">
-        <div className="flex flex-col md:flex-row items-center justify-between max-w-5xl mx-auto gap-3">
-          <div className="flex items-center gap-2">
-            <Image
-              src="/logo.png"
-              alt="LeafDoctor Logo"
-              width={24}
-              height={24}
-              className="rounded-full object-cover"
-              style={{ width: "24px", height: "24px" }}
-            />
-            <span>
-              &copy; {new Date().getFullYear()} LeafDoctor. All rights reserved.
-            </span>
+      {/* Features Grid */}
+      <section className="py-24 relative">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl font-bold text-slate-900 sm:text-4xl mb-4">Why choose LeafDoctor?</h2>
+            <p className="text-lg text-slate-600 max-w-2xl mx-auto">
+              We combine state-of-the-art machine learning with agricultural expertise to help you save your crops.
+            </p>
           </div>
-          <nav className="flex gap-6">
-            <a
-              href="https://github.com/spMohanty/PlantVillage-Dataset "
-              className="hover:text-green-400 transition underline"
-              target="_blank" rel="noopener noreferrer"
-            >
-              PlantVillage on GitHub
-            </a>
-            <a
-              href="/diagnosis"
-              className="hover:text-green-400 transition underline"
-            >
-              Diagnosis
-            </a>
-          </nav>
+
+          <motion.div 
+            variants={staggerContainer}
+            initial="initial"
+            whileInView="animate"
+            viewport={{ once: true }}
+            className="grid grid-cols-1 md:grid-cols-3 gap-8"
+          >
+            {/* Feature 1 */}
+            <motion.div variants={fadeInUp} className="group p-8 rounded-2xl bg-white/60 backdrop-blur-md border border-white/40 shadow-sm hover:border-green-200 hover:bg-green-50/40 transition-all duration-300 hover:shadow-xl hover:shadow-green-100/20">
+              <div className="w-14 h-14 bg-green-100 rounded-xl flex items-center justify-center mb-6 text-green-600 group-hover:scale-110 transition-transform duration-300">
+                <Activity className="w-7 h-7" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-3">High Precision</h3>
+              <p className="text-slate-600 leading-relaxed">
+                Trained on over 50,000 images from the PlantVillage dataset to detect even early signs of disease with more than 90% accuracy.
+              </p>
+            </motion.div>
+
+            {/* Feature 2 */}
+            <motion.div variants={fadeInUp} className="group p-8 rounded-2xl bg-white/60 backdrop-blur-md border border-white/40 shadow-sm hover:border-blue-200 hover:bg-blue-50/40 transition-all duration-300 hover:shadow-xl hover:shadow-blue-100/20">
+              <div className="w-14 h-14 bg-blue-100 rounded-xl flex items-center justify-center mb-6 text-blue-600 group-hover:scale-110 transition-transform duration-300">
+                <Sprout className="w-7 h-7" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-3">Instant Treatment</h3>
+              <p className="text-slate-600 leading-relaxed">
+                Don't just find the problem—fix it. Get actionable, chemical and organic treatment steps immediately after diagnosis.
+              </p>
+            </motion.div>
+
+            {/* Feature 3 */}
+            <motion.div variants={fadeInUp} className="group p-8 rounded-2xl bg-white/60 backdrop-blur-md border border-white/40 shadow-sm hover:border-yellow-200 hover:bg-yellow-50/40 transition-all duration-300 hover:shadow-xl hover:shadow-yellow-100/20">
+              <div className="w-14 h-14 bg-yellow-100 rounded-xl flex items-center justify-center mb-6 text-yellow-600 group-hover:scale-110 transition-transform duration-300">
+                <CloudSun className="w-7 h-7" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-3">Weather Aware</h3>
+              <p className="text-slate-600 leading-relaxed">
+                Integrated local weather forecasts help you plan the best time for spraying and harvest to maximize effectiveness.
+              </p>
+            </motion.div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* How it Works Section */}
+      <section className="py-24 relative">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl font-bold text-slate-900 sm:text-4xl mb-4">How it works</h2>
+            <p className="text-lg text-slate-600">A comprehensive process to ensure your plants thrive.</p>
+          </div>
+
+          <div className="relative grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+            {/* Connecting Line (Desktop) */}
+            <div className="hidden lg:block absolute top-12 left-[10%] right-[10%] h-0.5 bg-slate-200/60 -z-10" />
+
+            {[
+              { 
+                icon: Upload, 
+                title: 'Upload Photo', 
+                desc: 'Take a clear photo of the affected leaf or crop.' 
+              },
+              { 
+                icon: Activity, 
+                title: 'AI Analysis', 
+                desc: 'Our model identifies the specific disease with high precision.' 
+              },
+              { 
+                icon: Stethoscope, 
+                title: 'Get Treatment', 
+                desc: 'Receive immediate organic and chemical treatment steps.' 
+              },
+              { 
+                icon: MessageSquare, 
+                title: 'Consult AI Expert', 
+                desc: 'Chat with our 24/7 AI assistant for follow-up care and tips.' 
+              }
+            ].map((step, i) => (
+              <div key={i} className="flex flex-col items-center text-center p-6 rounded-3xl bg-white/40 border border-transparent hover:border-green-100 hover:bg-white/60 transition-all duration-300">
+                <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center border-4 border-green-50 shadow-sm mb-6 relative z-10 group-hover:scale-110 transition-transform">
+                  <step.icon className="w-8 h-8 text-green-600" />
+                  <div className="absolute -top-2 -right-2 w-7 h-7 bg-green-600 text-white text-xs font-bold rounded-full flex items-center justify-center border-2 border-white">
+                    {i + 1}
+                  </div>
+                </div>
+                <h3 className="text-lg font-bold text-slate-900 mb-2">{step.title}</h3>
+                <p className="text-sm text-slate-600 max-w-xs">{step.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+
+
+      {/* Footer */}
+      <footer className="py-3 bg-green-50 text-slate-600 border-t border-green-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-6">
+          <div className="flex items-center gap-2">
+            <Leaf className="w-10 h-10 text-green-600" />
+            <span className="text-2xl font-bold text-slate-900">LeafDoctor</span>
+          </div>
+          <p className="text-sm">
+            &copy; {new Date().getFullYear()} LeafDoctor. All rights reserved.
+          </p>
         </div>
       </footer>
-    </div>
+    </main>
   );
 }

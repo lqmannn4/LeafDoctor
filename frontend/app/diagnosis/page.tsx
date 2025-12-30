@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, {
@@ -10,6 +9,8 @@ import React, {
 } from "react";
 import Image from "next/image";
 import ReactMarkdown from "react-markdown";
+import { Upload, Camera, X, RefreshCw, AlertCircle, Wind, Thermometer, CloudSun, Leaf, Droplets, ArrowRight, Activity } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 // Typing out Gemini Advice with Markdown formatting support
 function TypingAdvice({
@@ -44,16 +45,25 @@ function TypingAdvice({
   // Custom component to color strong text
   const markdownComponents = {
     strong: ({ node, ...props }: any) => (
-      <span className="font-bold text-green-400" {...props} />
+      <span className="font-bold text-green-600" {...props} />
     ),
     b: ({ node, ...props }: any) => (
-      <span className="font-bold text-green-400" {...props} />
+      <span className="font-bold text-green-600" {...props} />
+    ),
+    h1: ({ node, ...props }: any) => (
+      <h1 className="text-xl font-bold text-slate-900 mt-4 mb-2" {...props} />
+    ),
+    h2: ({ node, ...props }: any) => (
+      <h2 className="text-lg font-bold text-slate-800 mt-3 mb-2" {...props} />
+    ),
+    ul: ({ node, ...props }: any) => (
+      <ul className="list-disc list-inside space-y-1 my-2 text-slate-700" {...props} />
     ),
   };
 
   return (
     <div className="relative">
-      <div className="prose prose-sm max-w-none text-gray-900 leading-relaxed">
+      <div className="prose prose-sm max-w-none text-slate-600 leading-relaxed">
         <ReactMarkdown components={markdownComponents}>
           {displayed + (done ? "" : " ▍")}
         </ReactMarkdown>
@@ -131,204 +141,65 @@ function SidebarFooter() {
     setTip(tips[Math.floor(Math.random() * tips.length)]);
   }, []);
 
-  // Weather icon by weathercode (OpenMeteo codes: 0-clear, 1-2-mainly clear/few clouds, 3-overcast, 45-48 fog, 51..67 drizzle, 80..82 rains, 95..99 thunder)
-  function weatherIcon(code: number) {
-    // Basic set: Sunny, Cloudy, Rain, Thunder
-    if (code === 0) {
-      // Sun
-      return (
-        <svg
-          className="h-8 w-8 text-yellow-500"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <circle cx="12" cy="12" r="5" fill="#fde68a" />
-          <g stroke="#fcd34d" strokeWidth="2">
-            <line x1="12" y1="2" x2="12" y2="5" />
-            <line x1="12" y1="19" x2="12" y2="22" />
-            <line x1="2" y1="12" x2="5" y2="12" />
-            <line x1="19" y1="12" x2="22" y2="12" />
-            <line x1="4.2" y1="4.2" x2="6.35" y2="6.35" />
-            <line x1="17.65" y1="17.65" x2="19.8" y2="19.8" />
-            <line x1="4.2" y1="19.8" x2="6.35" y2="17.65" />
-            <line x1="17.65" y1="6.35" x2="19.8" y2="4.2" />
-          </g>
-        </svg>
-      );
-    }
-    if ([1, 2, 3, 45, 48].includes(code)) {
-      // Cloudy
-      return (
-        <svg
-          className="h-8 w-8 text-blue-400"
-          fill="none"
-          viewBox="0 0 24 24"
-        >
-          <ellipse cx="12" cy="16" rx="7" ry="4" fill="#bae6fd" />
-          <ellipse cx="9" cy="14" rx="4" ry="3" fill="#7dd3fc" />
-        </svg>
-      );
-    }
-    if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) {
-      // Rain
-      return (
-        <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24">
-          <ellipse cx="12" cy="15" rx="6" ry="3.5" fill="#93c5fd" />
-          <ellipse cx="9" cy="13" rx="3.5" ry="2.5" fill="#38bdf8" />
-          <g>
-            <line
-              x1="10"
-              y1="19"
-              x2="10"
-              y2="22"
-              stroke="#22d3ee"
-              strokeWidth="2"
-              strokeLinecap="round"
-            />
-            <line
-              x1="14"
-              y1="18"
-              x2="14"
-              y2="21"
-              stroke="#22d3ee"
-              strokeWidth="2"
-              strokeLinecap="round"
-            />
-          </g>
-        </svg>
-      );
-    }
-    if (code >= 95 && code <= 99) {
-      // Thunder
-      return (
-        <svg className="h-8 w-8" viewBox="0 0 24 24" fill="none">
-          <ellipse cx="13" cy="15" rx="6" ry="3.5" fill="#ccc" />
-          <polygon
-            points="12,13 10,20 14,17 12,24"
-            fill="#f59e42"
-          />
-        </svg>
-      );
-    }
-    // Default: question
-    return (
-      <svg className="h-8 w-8 text-gray-300" fill="none" viewBox="0 0 24 24">
-        <circle
-          cx="12"
-          cy="12"
-          r="8"
-          stroke="#cbd5e1"
-          strokeWidth="2"
-          fill="#f1f5f9"
-        />
-        <text
-          x="12"
-          y="16"
-          textAnchor="middle"
-          fontSize="10"
-          fill="#64748b"
-        >
-          ?
-        </text>
-      </svg>
-    );
+  // Weather icon by weathercode
+  function WeatherIcon({ code }: { code: number }) {
+    if (code === 0) return <CloudSun className="w-8 h-8 text-yellow-500" />;
+    if ([1, 2, 3, 45, 48].includes(code)) return <CloudSun className="w-8 h-8 text-blue-400" />;
+    if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) return <Droplets className="w-8 h-8 text-blue-500" />;
+    if (code >= 95 && code <= 99) return <AlertCircle className="w-8 h-8 text-yellow-600" />;
+    return <CloudSun className="w-8 h-8 text-slate-400" />;
   }
 
   return (
-    <div className="w-full px-2 md:px-0 mt-auto">
+    <div className="w-full mt-auto space-y-4">
       {/* Agri-Weather Widget */}
-      <div
-        className="rounded-xl mb-2 bg-white/25 backdrop-blur-md shadow border border-green-200/40 px-4 py-3 flex flex-col items-start gap-2"
-        style={{
-          background:
-            "linear-gradient(140deg,rgba(255,255,255,0.30),rgba(255,255,255,0.16))",
-        }}
-      >
-        <div className="flex items-center gap-2 w-full">
-          <span aria-label="Weather Icon" className="mr-1">
-            {typeof weather === "object" && weather ? (
-              weatherIcon(weather.weathercode)
-            ) : (
-              <svg
-                className="h-8 w-8 text-gray-300 animate-pulse"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  cx="12"
-                  cy="12"
-                  r="8"
-                  stroke="#cbd5e1"
-                  strokeWidth="2"
-                  fill="#f1f5f9"
-                />
-              </svg>
-            )}
-          </span>
-          <div className="flex-1 flex flex-col justify-center">
-            <span className="font-bold text-[1.3rem] text-green-900 leading-relaxed">
-              {typeof weather === "string" && weather}
-              {weather === null && (
-                <span className="text-gray-400 animate-pulse">—</span>
-              )}
-              {typeof weather === "object" && weather
-                ? `${Math.round(weather.temperature)}°C`
-                : ""}
-            </span>
-            <span className="text-xs text-green-700 font-semibold opacity-70">
-              {typeof weather === "object" && weather ? weather.location : ""}
-            </span>
+      <div className="group rounded-2xl bg-white/60 backdrop-blur-md border border-white/40 p-5 shadow-sm hover:shadow-md transition-all duration-300">
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex items-center gap-3">
+             <div className="p-2 bg-blue-50 rounded-xl">
+               {typeof weather === "object" && weather ? (
+                 <WeatherIcon code={weather.weathercode} />
+               ) : (
+                 <CloudSun className="w-8 h-8 text-slate-300 animate-pulse" />
+               )}
+             </div>
+             <div>
+               <h4 className="font-bold text-slate-900 text-lg">
+                 {typeof weather === "object" && weather 
+                   ? `${Math.round(weather.temperature)}°C` 
+                   : "..."}
+               </h4>
+               <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">
+                 {typeof weather === "object" && weather ? weather.location : "Loading..."}
+               </p>
+             </div>
           </div>
         </div>
-        <div className="flex items-center gap-3 mt-1 w-full">
-          <span className="text-xs text-gray-900">
-            <svg
-              className="inline-block mr-1 -mt-0.5 w-4 h-4 text-blue-400"
-              fill="none"
-              viewBox="0 0 20 20"
-            >
-              <path d="M8.42 2C7.6 3.8 6.12 6.46 5.21 8.46 3.77 11.41 3.37 12.52 3.31 13.01c-.11.82.28 1.63.99 2.04.86.5 1.94.19 2.47-.72.06-.1 2.63-4.53 2.63-4.53s2.48 4.5 2.53 4.58c.53.92 1.61 1.22 2.48.72.7-.41 1.09-1.22.99-2.04-.06-.49-.47-1.6-1.91-4.55-.87-2-2.34-4.65-3.16-6.45z" />
-            </svg>
-            Wind{" "}
-            {typeof weather === "object" && weather ? (
-              <span className="font-semibold">
-                {Math.round(weather.windspeed)} km/h
-              </span>
-            ) : (
-              <span className="font-normal text-gray-400">—</span>
-            )}
-          </span>
+        
+        <div className="flex items-center gap-4 pt-4 border-t border-slate-100">
+          <div className="flex items-center gap-2 text-xs text-slate-600">
+            <Wind className="w-4 h-4 text-blue-400" />
+            <span>
+              Wind: {typeof weather === "object" && weather ? `${Math.round(weather.windspeed)} km/h` : "--"}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-green-600 font-medium ml-auto">
+            <Leaf className="w-4 h-4" />
+            <span>Good Conditions</span>
+          </div>
         </div>
-        <span className="text-xs font-semibold text-green-700 mt-2 opacity-80 uppercase tracking-wide">
-          Field Conditions
-        </span>
       </div>
+
       {/* Grower Tip Widget */}
-      <div
-        className="rounded-xl bg-white/15 backdrop-blur-md shadow border border-green-100/30 px-4 py-3 mt-1 flex items-start gap-2"
-        style={{
-          background:
-            "linear-gradient(160deg,rgba(255,255,255,0.18),rgba(255,255,255,0.1))",
-        }}
-      >
-        <span
-          aria-label="Lightbulb Tip"
-          className="mt-0.5 text-yellow-400 flex-shrink-0"
-        >
-          <svg className="w-5 h-5 " fill="none" viewBox="0 0 24 24">
-            <path
-              d="M12 3a7 7 0 017 7c0 2.36-1.34 4.36-3.32 5.41a1 1 0 00-.5.86V18a2 2 0 01-2 2 2 2 0 01-2-2v-1.73a1 1 0 00-.51-.87A6.99 6.99 0 015 10a7 7 0 017-7zm-2 16h4a1 1 0 010 2h-4a1 1 0 010-2z"
-              fill="#fde68a"
-              stroke="#f59e42"
-              strokeWidth="1.2"
-            />
-          </svg>
-        </span>
-        <div className="flex-1">
-          <span className="block text-xs text-gray-800 font-medium leading-snug">
+      <div className="rounded-2xl bg-gradient-to-br from-green-50 to-emerald-50/50 border border-green-100 p-5 flex items-start gap-3">
+        <div className="p-2 bg-white rounded-full shadow-sm">
+          <Leaf className="w-5 h-5 text-green-600" />
+        </div>
+        <div>
+          <h5 className="text-xs font-bold text-green-800 uppercase mb-1">Daily Grower Tip</h5>
+          <p className="text-sm text-green-900/80 leading-snug font-medium">
             {tip}
-          </span>
+          </p>
         </div>
       </div>
     </div>
@@ -353,6 +224,7 @@ export default function DiagnosisPage() {
   const [typedAdvice, setTypedAdvice] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [saved, setSaved] = useState(false); // New State
   const [stream, setStream] = useState<MediaStream | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -539,19 +411,33 @@ export default function DiagnosisPage() {
     setError(null);
     setResult(null);
     setTypedAdvice("");
+    setSaved(false);
+    
     try {
+      const token = localStorage.getItem("token");
+      const url = new URL("http://127.0.0.1:8000/predict");
+      
+      // If user is logged in, tell backend to save
+      if (token) {
+        url.searchParams.append("save", "true");
+        url.searchParams.append("token", token);
+      }
+
       const formData = new FormData();
       formData.append("file", image);
-      const res = await fetch("http://127.0.0.1:8000/predict", {
+      
+      const res = await fetch(url.toString(), {
         method: "POST",
         body: formData,
       });
+      
       if (!res.ok) {
         const errData = await res.json();
         throw new Error(errData.detail || "Prediction failed");
       }
       const data = await res.json();
       const { top_3_predictions, advice } = data;
+      
       setResult({
         predictions: top_3_predictions.map(
           (pred: { class_name: string; confidence_score: number }) => ({
@@ -562,6 +448,8 @@ export default function DiagnosisPage() {
         advice: advice || "",
       });
       setTypedAdvice(advice || "");
+      if (token) setSaved(true); // Show saved indicator
+
     } catch (err: any) {
       setError(
         err?.message || "There was a problem contacting the prediction server."
@@ -575,7 +463,6 @@ export default function DiagnosisPage() {
     (loading && image && imagePreview && !error) ||
     (!!typedAdvice && (!loading || !!result?.advice));
 
-  // No more cleanAdviceText - keep advice as-is to allow markdown such as **bold**
   let geminiAdviceTextToShow = "";
   if (loading && image && imagePreview && !error) {
     geminiAdviceTextToShow = typedAdvice;
@@ -589,109 +476,88 @@ export default function DiagnosisPage() {
     return "diseased";
   }
 
-  function Navbar() {
-    return (
-      <nav className="w-full bg-white border-b border-gray-200 shadow-sm fixed top-0 left-0 z-30">
-        <div className="max-w-6xl mx-auto px-4 py-2 flex items-center gap-3">
-          <Image
-            src="/logo.png"
-            alt="FloraScan logo"
-            height={38}
-            width={38}
-            className="rounded-lg border border-green-400 shadow mr-2"
-          />
-          <span className="text-2xl font-extrabold tracking-tight text-green-700">
-            FloraScan
-          </span>
-        </div>
-      </nav>
-    );
-  }
-
   return (
-    <main className="min-h-screen bg-gradient-to-br from-green-100 via-white to-green-100 flex flex-col items-center pt-20 pb-8 px-2 sm:px-6 font-sans transition-all">
-      <Navbar />
+    <main className="relative min-h-screen font-sans text-slate-900 selection:bg-green-100 selection:text-green-900 pt-24 flex flex-col">
+      
+      {/* Global Background Layer */}
+      <div className="fixed inset-0 -z-10 h-full w-full bg-white">
+        <div className="absolute inset-0 bg-gradient-to-b from-white to-green-50/30" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[600px] bg-green-100/40 rounded-full blur-[100px] opacity-70" />
+        <div className="absolute bottom-0 right-0 w-[800px] h-[600px] bg-blue-50/40 rounded-full blur-[100px] opacity-60" />
+      </div>
 
-      <section className="w-full max-w-6xl mx-auto mt-8">
+      <section className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex-1 pb-12">
+        
+        <div className="mb-10 text-center">
+            <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight mb-3">AI Diagnosis Studio</h1>
+            <p className="text-slate-600 max-w-2xl mx-auto">Upload a clear photo of a plant leaf to get instant disease identification and treatment advice.</p>
+        </div>
+
         {/* Responsive grid: Sidebar + Content */}
-        <div className="grid grid-cols-1 md:grid-cols-[320px_1fr] gap-8">
-          {/* -- LEFT: 'Sidebar' with Upload Zone and Footer Widgets -- */}
-          <div className="flex flex-col h-full min-h-[700px]">
-            <div className="bg-white rounded-xl shadow-lg px-8 py-7 md:p-10 border border-gray-100">
-              <h2 className="font-semibold text-gray-800 text-xl mb-5 text-center tracking-tight">
-                Upload or Take a Leaf Photo
+        <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-8">
+          
+          {/* -- LEFT: Upload Zone & Tools -- */}
+          <div className="flex flex-col gap-6">
+            <div className="bg-white/60 backdrop-blur-md rounded-3xl shadow-lg border border-white/50 p-6 md:p-8 relative overflow-hidden group">
+               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-green-400 to-emerald-500"></div>
+               
+              <h2 className="font-bold text-slate-900 text-lg mb-6 flex items-center gap-2">
+                <Camera className="w-5 h-5 text-green-600" />
+                Input Source
               </h2>
+              
               {/* Camera button */}
               <button
                 onClick={openCamera}
                 disabled={isCameraOpen || loading}
-                className="w-full mb-4 bg-green-600 hover:bg-green-700 shadow font-bold text-white py-2.5 px-4 rounded-lg transition disabled:opacity-50 flex items-center justify-center gap-2 text-base"
+                className="w-full mb-4 group relative overflow-hidden rounded-xl bg-slate-900 text-white shadow-md transition-all hover:bg-slate-800 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <svg
-                  width="22"
-                  height="22"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812-1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
-                  />
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
-                  />
-                </svg>
-                Take Photo
+                 <div className="relative z-10 flex items-center justify-center gap-2 py-4 px-4 font-bold">
+                    <Camera className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                    <span>Take Photo</span>
+                 </div>
               </button>
+              
+              <div className="relative flex items-center py-2">
+                <div className="flex-grow border-t border-slate-200"></div>
+                <span className="flex-shrink-0 mx-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Or Upload</span>
+                <div className="flex-grow border-t border-slate-200"></div>
+              </div>
+
               {/* DND Drop Area */}
               <div
-                className={`w-full rounded-xl border-2 border-dashed transition-all bg-green-50 min-h-[230px] flex flex-col items-center justify-center relative group cursor-pointer shadow-inner ${
+                className={`w-full rounded-2xl border-2 border-dashed transition-all duration-300 min-h-[260px] flex flex-col items-center justify-center relative group cursor-pointer ${
                   imagePreview
-                    ? "border-green-500"
-                    : "border-green-300 hover:border-green-500"
+                    ? "border-green-500 bg-green-50/30"
+                    : "border-slate-300 hover:border-green-400 bg-white/50 hover:bg-green-50/50"
                 }`}
                 onDrop={onDrop}
                 onDragOver={onDragOver}
                 onClick={handleUploadClick}
-                style={{ minHeight: 230 }}
               >
                 {imagePreview ? (
-                  <img
-                    src={imagePreview}
-                    alt="Leaf preview"
-                    className="rounded-lg shadow mt-0 bg-white max-h-60 w-full object-contain"
-                  />
+                  <div className="relative w-full h-full p-2 flex items-center justify-center">
+                    <img
+                      src={imagePreview}
+                      alt="Leaf preview"
+                      className="rounded-xl shadow-sm max-h-[240px] w-full object-contain"
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl">
+                        <span className="text-white font-medium flex items-center gap-2"><RefreshCw className="w-4 h-4"/> Change Image</span>
+                    </div>
+                  </div>
                 ) : (
-                  <div className="flex flex-col items-center text-green-700">
-                    <svg
-                      width={60}
-                      height={60}
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={1.7}
-                      className="mb-3 drop-shadow-lg"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M12 16V4m0 12l-4-4m4 4l4-4M20 16.58A5 5 0 0018 7.34a5 5 0 00-9.9-1.26A7 7 0 004 16.25"
-                      />
-                    </svg>
-                    <span className="text-lg font-medium mb-1">
-                      Drag &amp; drop a photo here
+                  <div className="flex flex-col items-center text-slate-500 p-6 text-center">
+                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
+                        <Upload className="w-8 h-8 text-green-600" />
+                    </div>
+                    <span className="text-lg font-bold text-slate-800 mb-2">
+                      Drop photo here
                     </span>
-                    <span className="text-green-600 text-base">
-                      or{" "}
-                      <span className="underline decoration-green-400">
-                        click to browse
-                      </span>
+                    <span className="text-sm text-slate-500 mb-4">
+                      or click to browse from device
                     </span>
+                    <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded">JPG, PNG supported</span>
                   </div>
                 )}
                 <input
@@ -702,10 +568,11 @@ export default function DiagnosisPage() {
                   onChange={onFileInputChange}
                 />
               </div>
+
               {/* Analyze+Reset row */}
               <div className="flex gap-3 mt-6">
                 <button
-                  className="flex-1 text-green-600 bg-green-100 hover:bg-green-200 rounded-lg py-2 px-4 font-semibold border border-green-200 disabled:opacity-50 transition"
+                  className="flex-1 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl py-3 px-4 font-bold text-sm transition-colors disabled:opacity-50"
                   disabled={!imagePreview}
                   onClick={(e) => {
                     e.preventDefault();
@@ -717,306 +584,211 @@ export default function DiagnosisPage() {
                 <button
                   onClick={handleAnalyze}
                   disabled={!image || loading}
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg disabled:opacity-50 flex items-center justify-center gap-2 transition-colors"
+                  className="flex-[2] bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg shadow-green-200 disabled:opacity-50 disabled:shadow-none flex items-center justify-center gap-2 transition-all hover:-translate-y-0.5"
                 >
                   {loading ? (
                     <>
-                      <svg
-                        className="animate-spin h-5 w-5 mr-2"
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        ></circle>
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8v8z"
-                        ></path>
-                      </svg>
+                      <RefreshCw className="w-5 h-5 animate-spin" />
                       Analyzing...
                     </>
                   ) : (
-                    "Analyze Leaf"
+                    <>
+                    Analyze Leaf <ArrowRight className="w-5 h-5" />
+                    </>
                   )}
                 </button>
               </div>
+              
               {error && (
-                <div className="w-full text-center text-sm text-red-600 bg-red-100 border border-red-200 py-2 px-3 mt-5 rounded-lg">
+                <div className="w-full flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-100 p-3 mt-4 rounded-xl">
+                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
                   {error}
                 </div>
               )}
-              <div className="mt-7 text-gray-400 text-xs text-center">
-                Supported formats: JPG, PNG, etc. <br />
-                Your image never leaves your device until you choose Analyze.
-              </div>
             </div>
+
             {/* SIDEBAR FOOTER WIDGETS */}
             <SidebarFooter />
           </div>
 
           {/* -- RIGHT: Results & Gemini Advice Panel -- */}
-          {(imagePreview || result || loading || error) && (
-            <div className="flex flex-col space-y-7">
-              {result && (
-                <div className="bg-white rounded-xl shadow-lg py-7 px-6 border border-gray-100">
-                  <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-gray-800">
-                    Diagnosis
-                  </h3>
-                  {result.predictions.length > 0 && (
-                    <div className="space-y-5">
-                      {result.predictions.map((pred, index) => {
-                        const severity = getDiagnosisSeverity(pred.class_name);
-                        const colorBar =
-                          severity === "healthy"
-                            ? "from-green-400 to-green-500"
-                            : "from-red-400 to-red-600";
-                        const colorLabel =
-                          severity === "healthy"
-                            ? "bg-green-100 text-green-700 border-green-300"
-                            : "bg-red-100 text-red-700 border-red-300";
-                        // Use Math.round(score * 100) + "%" instead of raw decimal
-                        const confPercent = `${Math.round(
-                          pred.confidence_score * 100
-                        )}%`;
-                        const label =
-                          severity === "healthy"
-                            ? "Healthy"
-                            : index === 0
-                            ? "Most Likely Disease"
-                            : "Possible Disease";
-
-                        return (
-                          <div
-                            key={index}
-                            className={`p-3 rounded-md border ${
-                              index === 0
-                                ? "border-green-400 bg-green-50/80"
-                                : "border-gray-200 bg-gray-50/90"
-                            } shadow-sm transition-all`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className="font-semibold text-base text-gray-700 capitalize">
-                                {pred.class_name
-                                  .replace(/___/g, " - ")
-                                  .replace(/_/g, " ")
-                                  .replace(
-                                    /\bhealthy\b/gi,
-                                    "Healthy"
-                                  )}
-                              </span>
-                              <span
-                                className={`px-2 py-0.5 text-xs font-bold rounded border ${colorLabel}`}
-                              >
-                                {label}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2 mt-2">
-                              <div className="flex-1 h-3 rounded-full bg-gray-200 relative overflow-hidden mr-2">
-                                <div
-                                  className={`h-full rounded-full bg-gradient-to-r ${colorBar} transition-all duration-700`}
-                                  style={{
-                                    width: `${Math.round(
-                                      pred.confidence_score * 100
-                                    )}%`,
-                                  }}
-                                />
-                              </div>
-                              <span
-                                className={
-                                  severity === "healthy"
-                                    ? "text-green-700 font-bold"
-                                    : "text-red-600 font-bold"
-                                }
-                              >
-                                {confPercent}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
+          <div className="flex flex-col gap-6">
+            
+            <AnimatePresence mode="wait">
+            {!imagePreview && !loading && !result && !error ? (
+                 <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="h-full min-h-[400px] flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-slate-200 rounded-3xl bg-white/40"
+                 >
+                    <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-6">
+                        <Leaf className="w-10 h-10 text-slate-300" />
                     </div>
-                  )}
-                </div>
-              )}
-              {showGeminiAdvice && (
-                <div className="bg-white rounded-xl shadow-lg py-7 px-6 border border-gray-100 min-h-[120px]">
-                  <div className="flex items-start gap-2 mb-3">
-                    <svg
-                      viewBox="0 0 24 24"
-                      aria-hidden="true"
-                      fill="none"
-                      width="28"
-                      height="28"
-                      className="text-green-400 drop-shadow mt-1"
-                    >
-                      <circle
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="2.2"
-                        fill="#22c55e"
-                        opacity="0.2"
-                      />
-                      <path
-                        d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41M19.07 4.93l-1.41 1.41"
-                        stroke="currentColor"
-                        strokeWidth="1.7"
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                    <h4 className="text-lg font-bold text-green-600 flex-1">
-                      Action Plan
-                    </h4>
-                    <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded uppercase tracking-wide border border-green-200 font-semibold">
-                      AI Advice
-                    </span>
-                  </div>
-                  <div className="mt-2 text-sm text-gray-900 min-h-[48px]">
-                    {geminiAdviceTextToShow ? (
-                      <TypingAdvice text={geminiAdviceTextToShow} />
-                    ) : loading ? (
-                      <div className="italic text-green-500">
-                        Preparing advice...
-                      </div>
-                    ) : (
-                      <span className="text-gray-400">No advice yet.</span>
+                    <h3 className="text-xl font-bold text-slate-700 mb-2">Ready for Diagnosis</h3>
+                    <p className="text-slate-500 max-w-sm">
+                        Upload an image from the panel on the left to begin the AI analysis process.
+                    </p>
+                 </motion.div>
+            ) : (
+                <div className="flex flex-col gap-6">
+                    {/* Diagnosis Result Card */}
+                    {result && (
+                        <motion.div 
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden"
+                        >
+                            <div className="bg-slate-50/80 border-b border-slate-100 px-6 py-4 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <h3 className="font-bold text-lg text-slate-900 flex items-center gap-2">
+                                        <Activity className="w-5 h-5 text-green-600" />
+                                        Diagnosis Results
+                                    </h3>
+                                    {saved && (
+                                        <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
+                                            <Leaf className="w-3 h-3" /> Saved
+                                        </span>
+                                    )}
+                                </div>
+                                <span className="text-xs font-mono text-slate-400">ID: {Math.random().toString(36).substr(2, 9).toUpperCase()}</span>
+                            </div>
+                            
+                            <div className="p-6">
+                                {result.predictions.length > 0 && (
+                                    <div className="space-y-4">
+                                    {result.predictions.map((pred, index) => {
+                                        const severity = getDiagnosisSeverity(pred.class_name);
+                                        const isHealthy = severity === "healthy";
+                                        const score = Math.round(pred.confidence_score * 100);
+                                        
+                                        return (
+                                        <div
+                                            key={index}
+                                            className={`p-4 rounded-2xl border ${
+                                            index === 0
+                                                ? isHealthy 
+                                                    ? "border-green-200 bg-green-50/50" 
+                                                    : "border-amber-200 bg-amber-50/50"
+                                                : "border-slate-100 bg-white"
+                                            } transition-all`}
+                                        >
+                                            <div className="flex items-center justify-between mb-2">
+                                                <span className={`font-bold text-lg capitalize ${index === 0 ? "text-slate-900" : "text-slate-600"}`}>
+                                                    {pred.class_name
+                                                    .replace(/___/g, " - ")
+                                                    .replace(/_/g, " ")
+                                                    .replace(/\bhealthy\b/gi, "Healthy")}
+                                                </span>
+                                                <span className={`font-mono font-bold ${isHealthy ? "text-green-600" : "text-amber-600"}`}>
+                                                    {score}%
+                                                </span>
+                                            </div>
+                                            
+                                            <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                                                <motion.div 
+                                                    initial={{ width: 0 }}
+                                                    animate={{ width: `${score}%` }}
+                                                    transition={{ duration: 1, delay: 0.2 }}
+                                                    className={`h-full rounded-full ${isHealthy ? "bg-green-500" : "bg-amber-500"}`} 
+                                                />
+                                            </div>
+                                        </div>
+                                        );
+                                    })}
+                                    </div>
+                                )}
+                            </div>
+                        </motion.div>
                     )}
-                  </div>
+
+                    {/* Gemini Advice Card */}
+                    {showGeminiAdvice && (
+                        <motion.div 
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.2 }}
+                            className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden flex flex-col"
+                        >
+                             <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-4 flex items-center justify-between text-white">
+                                <h3 className="font-bold text-lg flex items-center gap-2">
+                                    <Leaf className="w-5 h-5" />
+                                    Treatment Plan
+                                </h3>
+                                <div className="px-2 py-1 bg-white/20 rounded-lg text-xs font-medium backdrop-blur-sm">
+                                    AI Generated
+                                </div>
+                            </div>
+                            
+                            <div className="p-6 min-h-[160px]">
+                                {geminiAdviceTextToShow ? (
+                                <TypingAdvice text={geminiAdviceTextToShow} />
+                                ) : loading ? (
+                                <div className="flex flex-col items-center justify-center h-32 text-slate-400 gap-3">
+                                    <div className="w-2 h-2 bg-green-500 rounded-full animate-ping" />
+                                    <span className="text-sm font-medium">Generating expert advice...</span>
+                                </div>
+                                ) : (
+                                <span className="text-slate-400">No advice yet.</span>
+                                )}
+                            </div>
+                        </motion.div>
+                    )}
                 </div>
-              )}
-              {!result && !error && !loading && imagePreview && (
-                <div className="rounded-xl p-6 border border-gray-100 bg-white text-center shadow-lg min-h-[140px] flex flex-col items-center justify-center">
-                  <svg
-                    width={42}
-                    height={42}
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={1.65}
-                    className="mb-2 text-gray-400"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M12 19v-6m0 0v-6m0 6 3.5-3.5M12 12l-3.5-3.5"
-                    />
-                  </svg>
-                  <span className="text-gray-600">
-                    Ready to analyze – click "Analyze Leaf"!
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
-          {!imagePreview && !loading && !result && !error && (
-            <div className="md:block hidden rounded-xl border border-dashed border-gray-300 bg-gray-50 shadow-inner flex flex-col items-center justify-center text-center min-h-[410px] py-12 px-6 mx-2">
-              <svg
-                width={58}
-                height={58}
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={1.7}
-                className="mb-3 opacity-40 mx-auto"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 16V4m0 12l-4-4m4 4l4-4M20 16.58A5 5 0 0018 7.34a5 5 0 00-9.9-1.26A7 7 0 004 16.25"
-                />
-              </svg>
-              <h3 className="text-gray-400 font-medium text-lg mb-2">
-                No image selected yet
-              </h3>
-              <p className="text-gray-400 mb-3">
-                To begin, upload or take a new photo of a plant leaf.
-              </p>
-              <span className="text-gray-300 text-xs">
-                Instant feedback &middot; Fast & secure
-              </span>
-            </div>
-          )}
+            )}
+            </AnimatePresence>
+
+          </div>
         </div>
       </section>
 
+      {/* Camera Modal */}
       {isCameraOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-85 z-50 flex flex-col items-center justify-center p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md flex flex-col items-center">
-            <h2 className="text-xl font-bold text-white mb-4">
-              Position the leaf in the frame
-            </h2>
-            <div className="relative w-full bg-neutral-900 rounded-lg overflow-hidden mb-4">
+        <div className="fixed inset-0 bg-black/90 z-50 flex flex-col items-center justify-center p-4 backdrop-blur-md">
+          <div className="w-full max-w-2xl flex flex-col items-center">
+            <div className="flex justify-between w-full text-white mb-4 items-center">
+                <h2 className="text-xl font-bold">Take Photo</h2>
+                <button onClick={closeCamera} className="p-2 bg-white/10 rounded-full hover:bg-white/20 transition"><X className="w-6 h-6"/></button>
+            </div>
+            
+            <div className="relative w-full bg-black rounded-2xl overflow-hidden shadow-2xl border border-white/10 mb-6 aspect-video">
               <video
                 ref={videoRef}
                 autoPlay
                 playsInline
                 muted
-                className="w-full h-auto"
-                style={{ maxHeight: "70vh" }}
+                className="w-full h-full object-cover"
               />
               <canvas ref={canvasRef} className="hidden" />
+              <div className="absolute inset-0 border-2 border-white/30 rounded-2xl pointer-events-none"></div>
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 border-2 border-white/50 rounded-lg pointer-events-none"></div>
             </div>
-            <div className="flex gap-4 w-full">
-              <button
-                onClick={closeCamera}
-                className="flex-1 bg-gray-400 hover:bg-gray-500 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
-              >
-                Cancel
-              </button>
+            
+            <div className="flex gap-4 w-full max-w-sm">
               <button
                 onClick={capturePhoto}
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
+                className="w-full bg-white text-black font-bold py-4 px-6 rounded-full hover:bg-slate-200 transition-colors flex items-center justify-center gap-2 shadow-lg"
               >
-                <svg
-                  width="25"
-                  height="25"
-                  fill="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <circle cx="12" cy="12" r="10" />
-                </svg>
-                Capture
+                <div className="w-4 h-4 rounded-full bg-red-500 animate-pulse" />
+                Capture Photo
               </button>
             </div>
           </div>
         </div>
       )}
 
-      <footer className="mt-20 py-6 w-full bg-gradient-to-t from-green-100 via-white to-transparent border-t border-green-200 text-xs text-gray-500 text-center">
-        <span>
-          Powered by FloraScan · MobileNet &amp; PlantVillage{" "}
-          <a
-            href="https://github.com/spMohanty/PlantVillage-Dataset"
-            className="underline hover:text-green-600 transition-colors"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Dataset on GitHub
-          </a>
-        </span>
+      {/* Footer */}
+      <footer className="py-3 bg-green-50 text-slate-600 border-t border-green-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-6">
+          <div className="flex items-center gap-2">
+            <Leaf className="w-10 h-10 text-green-600" />
+            <span className="text-2xl font-bold text-slate-900">LeafDoctor</span>
+          </div>
+          <p className="text-sm">
+            &copy; {new Date().getFullYear()} LeafDoctor. All rights reserved.
+          </p>
+        </div>
       </footer>
-
-      <style>
-        {`
-        @keyframes blink {
-          0%, 100% { opacity: 1; }
-          40% { opacity: 0; }
-        }
-        .blink {
-          animation: blink 1.05s step-end infinite;
-          font-weight: bold;
-        }
-        `}
-      </style>
     </main>
   );
 }

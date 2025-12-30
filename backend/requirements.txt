@@ -5,3 +5,8 @@ pillow
 numpy
 google-generativeai
 python-dotenv
+sqlalchemy
+passlib
+argon2-cffi
+python-multipart
+python-jose[cryptography]
