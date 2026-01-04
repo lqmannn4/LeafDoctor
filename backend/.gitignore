@@ -22,3 +22,8 @@ ENV/
 *.hdf5
 *.pkl
 *.model
+
+# Data files
+diagnoses.csv
+users.csv
+uploads/

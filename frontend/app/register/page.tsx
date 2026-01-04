@@ -31,7 +31,7 @@ export default function RegisterPage() {
 
       const data = await res.json();
       localStorage.setItem("token", data.access_token);
-      router.push("/dashboard");
+      router.push("/my-garden");
       window.dispatchEvent(new Event("storage"));
     } catch (err: any) {
       setError(err.message);

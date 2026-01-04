@@ -33,7 +33,7 @@ export default function LoginPage() {
 
       const data = await res.json();
       localStorage.setItem("token", data.access_token); // Save JWT
-      router.push("/dashboard"); // Redirect to My Garden
+      router.push("/my-garden"); // Redirect to My Garden
       window.dispatchEvent(new Event("storage")); // Trigger storage event for Navbar update
     } catch (err) {
       setError("Invalid email or password. Please try again.");

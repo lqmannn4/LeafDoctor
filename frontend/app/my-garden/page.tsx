@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Leaf, Calendar, Activity, LogOut } from "lucide-react";
+import { Leaf, Calendar, Activity, LogOut, Trash2 } from "lucide-react";
 
 interface Diagnosis {
   id: number;
@@ -14,7 +14,7 @@ interface Diagnosis {
   timestamp: string;
 }
 
-export default function DashboardPage() {
+export default function MyGardenPage() {
   const [diagnoses, setDiagnoses] = useState<Diagnosis[]>([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
@@ -47,6 +47,30 @@ export default function DashboardPage() {
 
     fetchGarden();
   }, [router]);
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this diagnosis?")) return;
+
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    try {
+      const res = await fetch(`http://127.0.0.1:8000/diagnoses/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ detail: "Unknown error" }));
+        throw new Error(errorData.detail || "Failed to delete");
+      }
+
+      setDiagnoses((prev) => prev.filter((item) => item.id !== id));
+    } catch (err: any) {
+      console.error(err);
+      alert(`Error: ${err.message}`);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -99,10 +123,11 @@ export default function DashboardPage() {
               <div key={item.id} className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden hover:shadow-md transition-shadow">
                 <div className="relative h-48 w-full">
                   <Image
-                    src={`http://127.0.0.1:8000/uploads/${item.filename}`}
+                    src={`http://127.0.0.1:8000/uploads/${encodeURIComponent(item.filename)}`}
                     alt={item.disease_name}
                     fill
                     className="object-cover"
+                    unoptimized
                   />
                   <div className="absolute top-2 right-2 px-2 py-1 bg-white/90 backdrop-blur-sm rounded-lg text-xs font-bold text-slate-700 flex items-center gap-1">
                     <Activity className="w-3 h-3 text-green-600" />
@@ -117,9 +142,16 @@ export default function DashboardPage() {
                     <Calendar className="w-3 h-3" />
                     {new Date(item.timestamp).toLocaleDateString()}
                   </div>
-                  <div className="prose prose-sm text-slate-600 line-clamp-3 text-sm">
+                  <div className="prose prose-sm text-slate-600 line-clamp-3 text-sm mb-4">
                     {item.advice}
                   </div>
+                  <button
+                    onClick={() => handleDelete(item.id)}
+                    className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors ml-auto"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    Delete
+                  </button>
                 </div>
               </div>
             ))}

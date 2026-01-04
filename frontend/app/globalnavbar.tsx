@@ -45,7 +45,7 @@ export default function GlobalNavbar() {
             </Link>
             {isLoggedIn ? (
               <Link
-                href="/dashboard"
+                href="/my-garden"
                 className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-full hover:bg-green-700 transition-colors font-bold text-sm shadow-sm"
               >
                 <User className="w-4 h-4" />

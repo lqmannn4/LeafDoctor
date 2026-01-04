@@ -1,6 +1,7 @@
 import os
 import shutil
 import datetime
+import csv
 from typing import Dict, List, Optional
 from pathlib import Path
 from io import BytesIO
@@ -19,7 +20,7 @@ env_path = Path(__file__).parent / ".env"
 load_dotenv(dotenv_path=env_path)
 
 # --- FastAPI & Third Party ---
-from fastapi import FastAPI, File, UploadFile, HTTPException, Depends, status
+from fastapi import FastAPI, File, UploadFile, HTTPException, Depends, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
@@ -29,10 +30,6 @@ import numpy as np
 from PIL import Image
 import google.generativeai as genai
 
-# --- Database & Auth ---
-from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, DateTime
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session, relationship
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 
@@ -49,38 +46,38 @@ if not api_key:
 genai.configure(api_key=api_key)
 
 # ==========================================
-# 2. DATABASE SETUP (SQLite)
+# 2. CSV DATABASE SETUP
 # ==========================================
-SQLALCHEMY_DATABASE_URL = "sqlite:///./plants.db"
-engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
+USERS_CSV = Path("users.csv")
+DIAGNOSES_CSV = Path("diagnoses.csv")
 
-class User(Base):
-    __tablename__ = "users"
-    id = Column(Integer, primary_key=True, index=True)
-    email = Column(String, unique=True, index=True)
-    hashed_password = Column(String)
-    diagnoses = relationship("Diagnosis", back_populates="owner")
+def init_csvs():
+    if not USERS_CSV.exists():
+        with open(USERS_CSV, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["id", "email", "hashed_password"]) # Header
 
-class Diagnosis(Base):
-    __tablename__ = "diagnoses"
-    id = Column(Integer, primary_key=True, index=True)
-    filename = Column(String)
-    disease_name = Column(String)
-    confidence = Column(String)
-    advice = Column(String)
-    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
-    user_id = Column(Integer, ForeignKey("users.id"))
-    owner = relationship("User", back_populates="diagnoses")
+    if not DIAGNOSES_CSV.exists():
+        with open(DIAGNOSES_CSV, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["id", "filename", "disease_name", "confidence", "advice", "timestamp", "user_id"]) # Header
 
-Base.metadata.create_all(bind=engine)
+init_csvs()
+
+def get_next_id(csv_path: Path) -> int:
+    with open(csv_path, "r", encoding="utf-8") as f:
+        reader = csv.reader(f)
+        data = list(reader)
+        if len(data) <= 1:
+            return 1
+        last_row = data[-1]
+        return int(last_row[0]) + 1
 
 # ==========================================
 # 3. AUTH UTILS
 # ==========================================
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
@@ -90,36 +87,51 @@ def get_password_hash(password):
 
 def create_access_token(data: dict, expires_delta: Optional[datetime.timedelta] = None):
     to_encode = data.copy()
-    expire = datetime.datetime.utcnow() + (expires_delta or datetime.timedelta(minutes=15))
+    if expires_delta:
+        expire = datetime.datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.datetime.utcnow() + datetime.timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-# Dependency to get DB session
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+def get_user_by_email(email: str):
+    if not USERS_CSV.exists():
+        return None
+    with open(USERS_CSV, "r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            if row["email"] == email:
+                return row
+    return None
 
-# Dependency to get current user
-async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+async def get_current_user(request: Request):
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        print(f"DEBUG: Missing or invalid Authorization header on {request.method} {request.url.path}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    token = auth_header.split(" ")[1]
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email: str = payload.get("sub")
         if email is None:
-            raise credentials_exception
-    except JWTError:
-        raise credentials_exception
-    user = db.query(User).filter(User.email == email).first()
+            raise JWTError("No sub in payload")
+    except JWTError as e:
+        print(f"DEBUG: Token validation failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    user = get_user_by_email(email)
     if user is None:
-        raise credentials_exception
+        raise HTTPException(status_code=401, detail="User not found")
     return user
 
 # ==========================================
@@ -127,18 +139,25 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
 # ==========================================
 app = FastAPI(title="Plant Disease Prediction API")
 
-# Mount 'uploads' directory to serve images
-UPLOAD_DIR = Path("uploads")
-UPLOAD_DIR.mkdir(exist_ok=True)
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    if request.method == "DELETE":
+        print(f"DEBUG: Incoming DELETE request to {request.url.path}")
+        print(f"DEBUG: Headers: {dict(request.headers)}")
+    response = await call_next(request)
+    return response
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+UPLOAD_DIR = Path("uploads")
+UPLOAD_DIR.mkdir(exist_ok=True)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # Load AI Model
 keras_model = None
@@ -188,8 +207,8 @@ class DiagnosisResponse(BaseModel):
     disease_name: str
     confidence: str
     advice: str
-    timestamp: datetime.datetime
-
+    timestamp: str 
+    
     class Config:
         from_attributes = True
 
@@ -198,35 +217,35 @@ class DiagnosisResponse(BaseModel):
 # ==========================================
 
 @app.post("/register", response_model=Token)
-def register(user: UserCreate, db: Session = Depends(get_db)):
-    db_user = db.query(User).filter(User.email == user.email).first()
-    if db_user:
+def register(user: UserCreate):
+    if get_user_by_email(user.email):
         raise HTTPException(status_code=400, detail="Email already registered")
     
     hashed_password = get_password_hash(user.password)
-    new_user = User(email=user.email, hashed_password=hashed_password)
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
+    new_id = get_next_id(USERS_CSV)
     
-    access_token = create_access_token(data={"sub": new_user.email})
+    with open(USERS_CSV, "a", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow([new_id, user.email, hashed_password])
+    
+    access_token = create_access_token(data={"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
 
 @app.post("/token", response_model=Token)
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == form_data.username).first()
-    if not user or not verify_password(form_data.password, user.hashed_password):
+def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    user = get_user_by_email(form_data.username)
+    if not user or not verify_password(form_data.password, user["hashed_password"]):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    access_token = create_access_token(data={"sub": user.email})
+    access_token = create_access_token(data={"sub": user["email"]})
     return {"access_token": access_token, "token_type": "bearer"}
 
 @app.get("/users/me")
-async def read_users_me(current_user: User = Depends(get_current_user)):
-    return {"email": current_user.email, "id": current_user.id}
+async def read_users_me(current_user: dict = Depends(get_current_user)):
+    return {"email": current_user["email"], "id": current_user["id"]}
 
 @app.post("/chat")
 async def chat(request: ChatRequest):
@@ -282,20 +301,17 @@ async def generate_advice(disease_name: str) -> str:
 async def predict(
     file: UploadFile = File(...),
     save: bool = False, # Optional flag to save result
-    token: Optional[str] = None, # Optional token to link to user
-    db: Session = Depends(get_db)
+    token: Optional[str] = None
 ):
     if keras_model is None:
         raise HTTPException(status_code=500, detail="Model not loaded")
     
     contents = await file.read()
-    image = Image.open(io.BytesIO(contents))
+    image = Image.open(BytesIO(contents))
     
-    # 1. Validation
     if not await validate_is_plant(image):
         raise HTTPException(status_code=400, detail="Invalid Image: Not a plant.")
     
-    # 2. Prediction
     processed = preprocess_image(image)
     preds = keras_model.predict(processed, verbose=0)[0]
     top_3_idx = np.argsort(preds)[-3:][::-1]
@@ -308,41 +324,88 @@ async def predict(
     confidence_str = f"{results[0]['confidence_score']:.2f}"
     advice = await generate_advice(main_disease)
     
-    # 3. Saving (If requested and user is authenticated)
     if save and token:
         try:
-            # Manually decode token here to avoid failing the whole request if token is invalid
             payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
             email = payload.get("sub")
-            user = db.query(User).filter(User.email == email).first()
+            user = get_user_by_email(email)
             
             if user:
-                # Save Image to Disk
-                filename = f"{datetime.datetime.utcnow().timestamp()}_{file.filename}"
+                safe_filename = file.filename.replace(" ", "_")
+                filename = f"{datetime.datetime.utcnow().timestamp()}_{safe_filename}"
                 filepath = UPLOAD_DIR / filename
                 with open(filepath, "wb") as f:
-                    f.write(contents) # Write the bytes we read earlier
+                    f.write(contents) 
                 
-                # Save to DB
-                diagnosis = Diagnosis(
-                    filename=filename,
-                    disease_name=main_disease,
-                    confidence=confidence_str,
-                    advice=advice,
-                    user_id=user.id
-                )
-                db.add(diagnosis)
-                db.commit()
+                new_id = get_next_id(DIAGNOSES_CSV)
+                timestamp = str(datetime.datetime.utcnow())
+                
+                with open(DIAGNOSES_CSV, "a", newline="", encoding="utf-8") as f:
+                    writer = csv.writer(f)
+                    writer.writerow([
+                        new_id, 
+                        filename, 
+                        main_disease, 
+                        confidence_str, 
+                        advice.replace("\n", " "),
+                        timestamp, 
+                        user["id"]
+                    ])
         except Exception as e:
             print(f"SAVE ERROR: {e}")
-            # Don't fail the prediction just because save failed
             pass
 
     return {"top_3_predictions": results, "advice": advice}
 
 @app.get("/my-garden", response_model=List[DiagnosisResponse])
-async def get_my_garden(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    return db.query(Diagnosis).filter(Diagnosis.user_id == current_user.id).all()
+async def get_my_garden(current_user: dict = Depends(get_current_user)):
+    user_id = str(current_user["id"])
+    diagnoses = []
+    
+    if DIAGNOSES_CSV.exists():
+        with open(DIAGNOSES_CSV, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if row["user_id"] == user_id:
+                    diagnoses.append(row)
+    
+    return diagnoses
+
+@app.delete("/diagnoses/{diagnosis_id}")
+async def delete_diagnosis(diagnosis_id: int, current_user: dict = Depends(get_current_user)):
+    user_id = str(current_user["id"])
+    rows = []
+    found = False
+    filename_to_delete = None
+
+    if DIAGNOSES_CSV.exists():
+        with open(DIAGNOSES_CSV, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            fieldnames = reader.fieldnames
+            for row in reader:
+                if row["id"] == str(diagnosis_id) and row["user_id"] == user_id:
+                    found = True
+                    filename_to_delete = row["filename"]
+                else:
+                    rows.append(row)
+    
+    if not found:
+        raise HTTPException(status_code=404, detail="Diagnosis not found or unauthorized")
+
+    with open(DIAGNOSES_CSV, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    if filename_to_delete:
+        file_path = UPLOAD_DIR / filename_to_delete
+        if file_path.exists():
+            try:
+                os.remove(file_path)
+            except Exception as e:
+                print(f"Error deleting file {file_path}: {e}")
+
+    return {"message": "Diagnosis deleted successfully"}
 
 @app.get("/health")
 async def health():
@@ -350,4 +413,4 @@ async def health():
 
 @app.get("/")
 async def root():
-    return {"message": "API is running"}
+    return {"message": "API is running (CSV Backend)"}
