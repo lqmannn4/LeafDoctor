@@ -3,14 +3,13 @@
 import React, {
   useState,
   useRef,
-  useEffect,
   DragEvent,
   ChangeEvent,
 } from "react";
-import Image from "next/image";
 import ReactMarkdown from "react-markdown";
-import { Upload, Camera, X, RefreshCw, AlertCircle, Wind, Thermometer, CloudSun, Leaf, Droplets, ArrowRight, Activity } from "lucide-react";
+import { Upload, RefreshCw, AlertCircle, Wind, CloudSun, Leaf, Droplets, ArrowRight, Activity, Download } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { jsPDF } from "jspdf";
 
 // Typing out Gemini Advice with Markdown formatting support
 function TypingAdvice({
@@ -24,7 +23,7 @@ function TypingAdvice({
   const [done, setDone] = React.useState(false);
   const intervalRef = React.useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
+  React.useEffect(() => {
     setDisplayed("");
     setDone(false);
     if (!text) return;
@@ -72,49 +71,89 @@ function TypingAdvice({
   );
 }
 
-// --- SidebarFooter with Weather & Grower Tip Widgets (Malaysia weather only) ---
+// --- SidebarFooter with Dynamic Location & Weather ---
 function SidebarFooter() {
-  // Malaysia location for weather (Midpoint: Kuala Lumpur)
-  const MALAYSIA_LOC = {
-    lat: 3.139, // Kuala Lumpur latitude
-    lon: 101.6869, // Kuala Lumpur longitude
-    location: "Kuala Lumpur, Malaysia",
+  // Default fallback (Kuala Lumpur)
+  const DEFAULT_LOC = {
+    lat: 3.139,
+    lon: 101.6869,
+    location: "Kuala Lumpur, Malaysia (Default)",
   };
 
-  // Weather state: null = loading, error = string, else weather obj
   const [weather, setWeather] = React.useState<{
     temperature: number;
     windspeed: number;
     weathercode: number;
-    location: string; // e.g. city
+    location: string;
   } | null | string>(null);
 
-  // Always fetch Malaysia weather (Kuala Lumpur)
-  useEffect(() => {
+  const [loadingLocation, setLoadingLocation] = useState(true);
+
+  React.useEffect(() => {
     let didCancel = false;
-    function fetchWeather(lat: number, lon: number, loc: string) {
-      fetch(
-        `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(
-          4
-        )}&longitude=${lon.toFixed(4)}&current_weather=true`
-      )
-        .then((res) => res.json())
-        .then((data) => {
-          if (!didCancel && data?.current_weather) {
-            setWeather({
-              temperature: data.current_weather.temperature,
-              windspeed: data.current_weather.windspeed,
-              weathercode: data.current_weather.weathercode,
-              location: loc,
-            });
-          } else if (!didCancel) {
-            setWeather("Weather unavailable");
-          }
-        })
-        .catch(() => !didCancel && setWeather("Weather unavailable"));
+
+    // Helper to fetch weather & location name
+    async function fetchWeatherData(lat: number, lon: number, locationName?: string) {
+      try {
+        // 1. Get Weather
+        const weatherRes = await fetch(
+          `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}&current_weather=true`
+        );
+        const weatherData = await weatherRes.json();
+
+        // 2. Get Location Name (if not provided) using BigDataCloud's free client-side API
+        let finalLocationName = locationName || "Unknown Location";
+        if (!locationName) {
+            try {
+                const geoRes = await fetch(
+                    `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`
+                );
+                const geoData = await geoRes.json();
+                // Construct a nice name: "City, Country" or "Locality, Country"
+                const city = geoData.city || geoData.locality || geoData.principalSubdivision;
+                const country = geoData.countryName;
+                if (city && country) finalLocationName = `${city}, ${country}`;
+                else if (country) finalLocationName = country;
+            } catch (err) {
+                console.warn("Could not reverse geocode:", err);
+                finalLocationName = "Local Weather";
+            }
+        }
+
+        if (!didCancel && weatherData?.current_weather) {
+          setWeather({
+            temperature: weatherData.current_weather.temperature,
+            windspeed: weatherData.current_weather.windspeed,
+            weathercode: weatherData.current_weather.weathercode,
+            location: finalLocationName,
+          });
+        } else if (!didCancel) {
+          setWeather("Weather unavailable");
+        }
+      } catch (e) {
+        if (!didCancel) setWeather("Weather unavailable");
+      } finally {
+        if (!didCancel) setLoadingLocation(false);
+      }
     }
-    setWeather(null); // loading
-    fetchWeather(MALAYSIA_LOC.lat, MALAYSIA_LOC.lon, MALAYSIA_LOC.location);
+
+    // 3. Try to get user location
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          fetchWeatherData(position.coords.latitude, position.coords.longitude);
+        },
+        (error) => {
+          console.warn("Geolocation denied/error:", error);
+          // Fallback
+          fetchWeatherData(DEFAULT_LOC.lat, DEFAULT_LOC.lon, DEFAULT_LOC.location);
+        }
+      );
+    } else {
+      // Fallback if no geolocation support
+      fetchWeatherData(DEFAULT_LOC.lat, DEFAULT_LOC.lon, DEFAULT_LOC.location);
+    }
+
     return () => {
       didCancel = true;
     };
@@ -136,8 +175,7 @@ function SidebarFooter() {
   // Tip state: deterministic for SSR (first tip), randomized on client after mount
   const [tip, setTip] = React.useState<string>(tips[0]);
 
-  useEffect(() => {
-    // Run only on client after hydration to avoid SSR/client mismatch
+  React.useEffect(() => {
     setTip(tips[Math.floor(Math.random() * tips.length)]);
   }, []);
 
@@ -151,26 +189,34 @@ function SidebarFooter() {
   }
 
   return (
-    <div className="w-full mt-auto space-y-4">
+    <div className="w-full space-y-4">
       {/* Agri-Weather Widget */}
       <div className="group rounded-2xl bg-white/60 backdrop-blur-md border border-white/40 p-5 shadow-sm hover:shadow-md transition-all duration-300">
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3">
              <div className="p-2 bg-blue-50 rounded-xl">
-               {typeof weather === "object" && weather ? (
+               {loadingLocation ? (
+                 <CloudSun className="w-8 h-8 text-slate-300 animate-pulse" />
+               ) : typeof weather === "object" && weather ? (
                  <WeatherIcon code={weather.weathercode} />
                ) : (
-                 <CloudSun className="w-8 h-8 text-slate-300 animate-pulse" />
+                 <AlertCircle className="w-8 h-8 text-slate-300" />
                )}
              </div>
              <div>
                <h4 className="font-bold text-slate-900 text-lg">
-                 {typeof weather === "object" && weather 
-                   ? `${Math.round(weather.temperature)}°C` 
-                   : "..."}
+                 {loadingLocation
+                   ? "Locating..."
+                   : typeof weather === "object" && weather 
+                     ? `${Math.round(weather.temperature)}°C` 
+                     : "Weather N/A"}
                </h4>
-               <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">
-                 {typeof weather === "object" && weather ? weather.location : "Loading..."}
+               <p className="text-xs text-slate-500 font-medium uppercase tracking-wide truncate max-w-[180px]">
+                 {loadingLocation 
+                    ? "Fetching location..." 
+                    : typeof weather === "object" && weather 
+                        ? weather.location 
+                        : "Unavailable"}
                </p>
              </div>
           </div>
@@ -223,35 +269,8 @@ export default function DiagnosisPage() {
   >(null);
   const [typedAdvice, setTypedAdvice] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
-  const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [saved, setSaved] = useState(false); // New State
-  const [stream, setStream] = useState<MediaStream | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    if (stream && videoRef.current) {
-      videoRef.current.srcObject = stream;
-      videoRef.current.play().catch((err) => {
-        console.error("Error playing video:", err);
-        setError("Could not start camera preview.");
-      });
-    }
-    return () => {
-      if (videoRef.current) {
-        videoRef.current.srcObject = null;
-      }
-    };
-  }, [stream]);
-
-  useEffect(() => {
-    return () => {
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
-      }
-    };
-  }, [stream]);
 
   const onImageChange = (file: File | null) => {
     setResult(null);
@@ -297,112 +316,6 @@ export default function DiagnosisPage() {
 
   const handleUploadClick = () => {
     inputRef.current?.click();
-  };
-
-  const openCamera = async () => {
-    try {
-      setError(null);
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        setError(
-          "Camera access is not supported in this browser. Please use a modern browser."
-        );
-        return;
-      }
-      let mediaStream: MediaStream | null = null;
-      try {
-        mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: "environment",
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-          },
-        });
-      } catch (err) {
-        try {
-          mediaStream = await navigator.mediaDevices.getUserMedia({
-            video: { width: { ideal: 1280 }, height: { ideal: 720 } },
-          });
-        } catch (err2) {
-          mediaStream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-          });
-        }
-      }
-      if (mediaStream) {
-        setStream(mediaStream);
-        setIsCameraOpen(true);
-      }
-    } catch (err: any) {
-      console.error("Camera error:", err);
-      let errorMessage = "Could not access camera. ";
-      if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-        errorMessage += "Please allow camera access in your browser settings.";
-      } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
-        errorMessage += "No camera found on this device.";
-      } else if (err.name === "NotReadableError" || err.name === "TrackStartError") {
-        errorMessage +=
-          "Camera is already in use by another application. Please close other apps using the camera.";
-      } else if (err.name === "OverconstrainedError") {
-        errorMessage += "Camera constraints not supported. Trying with basic settings...";
-        try {
-          const basicStream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-          });
-          setStream(basicStream);
-          setIsCameraOpen(true);
-          return;
-        } catch {
-          errorMessage = "Could not access camera with any settings.";
-        }
-      } else {
-        errorMessage += "Please check your camera permissions and try again.";
-      }
-      setError(errorMessage);
-      setIsCameraOpen(false);
-    }
-  };
-
-  const closeCamera = () => {
-    if (stream) {
-      stream.getTracks().forEach((track) => {
-        track.stop();
-        stream.removeTrack(track);
-      });
-      setStream(null);
-    }
-    setIsCameraOpen(false);
-    if (videoRef.current) {
-      videoRef.current.pause();
-      videoRef.current.srcObject = null;
-    }
-  };
-
-  const capturePhoto = () => {
-    if (!videoRef.current || !canvasRef.current) return;
-    const video = videoRef.current;
-    if (video.readyState !== video.HAVE_ENOUGH_DATA) {
-      setError("Camera is not ready. Please wait a moment and try again.");
-      return;
-    }
-    const canvas = canvasRef.current;
-    const context = canvas.getContext("2d");
-    if (!context) return;
-    canvas.width = video.videoWidth || video.clientWidth;
-    canvas.height = video.videoHeight || video.clientHeight;
-    context.drawImage(video, 0, 0);
-
-    canvas.toBlob((blob) => {
-      if (blob) {
-        const file = new File([blob], "camera-capture.jpg", {
-          type: "image/jpeg",
-          lastModified: Date.now(),
-        });
-        onImageChange(file);
-        closeCamera();
-      } else {
-        setError("Failed to capture photo. Please try again.");
-      }
-    }, "image/jpeg");
   };
 
   const handleAnalyze = async () => {
@@ -459,6 +372,121 @@ export default function DiagnosisPage() {
     }
   };
 
+  const handleDownloadReport = async () => {
+    if (!result) return;
+    
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 20;
+    let yPos = 20;
+
+    // Header
+    doc.setFontSize(22);
+    doc.setTextColor(22, 163, 74); // Green-600
+    doc.text("LeafDoctor - Diagnosis Report", margin, yPos);
+    yPos += 10;
+
+    // Date
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, margin, yPos);
+    yPos += 15;
+
+    // Line separator
+    doc.setDrawColor(220);
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+    yPos += 15;
+
+    // Uploaded Image
+    if (image) {
+        try {
+            const base64Img = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result as string);
+                reader.onerror = reject;
+                reader.readAsDataURL(image);
+            });
+            
+            const imgProps = doc.getImageProperties(base64Img);
+            const pdfWidth = pageWidth - 2 * margin;
+            
+            // Calculate height while maintaining aspect ratio, max height 80mm
+            const maxHeight = 80; 
+            let imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
+            let imgWidth = pdfWidth;
+            
+            if (imgHeight > maxHeight) {
+                imgHeight = maxHeight;
+                imgWidth = (imgProps.width * imgHeight) / imgProps.height;
+            }
+            
+            // Center the image
+            const xOffset = margin + (pdfWidth - imgWidth) / 2;
+            
+            const format = image.type === "image/png" ? "PNG" : "JPEG";
+            doc.addImage(base64Img, format, xOffset, yPos, imgWidth, imgHeight);
+            yPos += imgHeight + 15;
+        } catch (err) {
+            console.error("Error adding image to PDF:", err);
+        }
+    }
+
+    // Diagnosis Results Section
+    doc.setFontSize(16);
+    doc.setTextColor(30);
+    doc.setFont("helvetica", "bold");
+    doc.text("Diagnosis Results", margin, yPos);
+    yPos += 10;
+
+    result.predictions.forEach((pred) => {
+      const name = pred.class_name
+          .replace(/___/g, " - ")
+          .replace(/_/g, " ")
+          .replace(/\bhealthy\b/gi, "Healthy");
+      const score = Math.round(pred.confidence_score * 100);
+      
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(50);
+      doc.text(`• ${name}: ${score}% Confidence`, margin + 5, yPos);
+      yPos += 8;
+    });
+    yPos += 15;
+
+    // Treatment Plan Section
+    if (typedAdvice) {
+       doc.setFontSize(16);
+       doc.setFont("helvetica", "bold");
+       doc.setTextColor(30);
+       doc.text("AI Treatment Plan", margin, yPos);
+       yPos += 10;
+       
+       doc.setFontSize(11);
+       doc.setFont("helvetica", "normal");
+       doc.setTextColor(60);
+       
+       // Simple cleanup for markdown symbols to make it readable in PDF
+       const cleanAdvice = typedAdvice
+         .replace(/\*\*/g, "")       // Bold
+         .replace(/\*/g, "•")        // Bullets
+         .replace(/#{1,6}\s?/g, "")  // Headers
+         .replace(/`/g, "")          // Code
+         .trim();
+         
+       const splitText = doc.splitTextToSize(cleanAdvice, pageWidth - 2 * margin);
+       
+       // Check if text exceeds page
+       if (yPos + splitText.length * 5 > doc.internal.pageSize.getHeight() - margin) {
+         doc.addPage();
+         yPos = 20;
+       }
+       
+       doc.text(splitText, margin, yPos);
+    }
+    
+    doc.save("leafdoctor-report.pdf");
+  };
+
   const showGeminiAdvice =
     (loading && image && imagePreview && !error) ||
     (!!typedAdvice && (!loading || !!result?.advice));
@@ -502,28 +530,10 @@ export default function DiagnosisPage() {
                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-green-400 to-emerald-500"></div>
                
               <h2 className="font-bold text-slate-900 text-lg mb-6 flex items-center gap-2">
-                <Camera className="w-5 h-5 text-green-600" />
-                Input Source
+                <Upload className="w-5 h-5 text-green-600" />
+                Upload Image
               </h2>
               
-              {/* Camera button */}
-              <button
-                onClick={openCamera}
-                disabled={isCameraOpen || loading}
-                className="w-full mb-4 group relative overflow-hidden rounded-xl bg-slate-900 text-white shadow-md transition-all hover:bg-slate-800 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                 <div className="relative z-10 flex items-center justify-center gap-2 py-4 px-4 font-bold">
-                    <Camera className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                    <span>Take Photo</span>
-                 </div>
-              </button>
-              
-              <div className="relative flex items-center py-2">
-                <div className="flex-grow border-t border-slate-200"></div>
-                <span className="flex-shrink-0 mx-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Or Upload</span>
-                <div className="flex-grow border-t border-slate-200"></div>
-              </div>
-
               {/* DND Drop Area */}
               <div
                 className={`w-full rounded-2xl border-2 border-dashed transition-all duration-300 min-h-[260px] flex flex-col items-center justify-center relative group cursor-pointer ${
@@ -696,6 +706,18 @@ export default function DiagnosisPage() {
                                         </div>
                                         );
                                     })}
+
+                                    {/* Prominent Download Button */}
+                                    <div className="mt-8 pt-6 border-t border-slate-100">
+                                        <button 
+                                            onClick={handleDownloadReport}
+                                            className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-bold py-4 px-6 rounded-2xl shadow-lg shadow-green-100 flex items-center justify-center gap-3 transition-all hover:-translate-y-1 active:scale-[0.98]"
+                                        >
+                                            <Download className="w-5 h-5" />
+                                            Download Comprehensive Report (PDF)
+                                        </button>
+                                        <p className="text-center text-xs text-slate-400 mt-3 font-medium">Includes original photo, diagnosis data and treatment plan</p>
+                                    </div>
                                     </div>
                                 )}
                             </div>
@@ -741,41 +763,6 @@ export default function DiagnosisPage() {
           </div>
         </div>
       </section>
-
-      {/* Camera Modal */}
-      {isCameraOpen && (
-        <div className="fixed inset-0 bg-black/90 z-50 flex flex-col items-center justify-center p-4 backdrop-blur-md">
-          <div className="w-full max-w-2xl flex flex-col items-center">
-            <div className="flex justify-between w-full text-white mb-4 items-center">
-                <h2 className="text-xl font-bold">Take Photo</h2>
-                <button onClick={closeCamera} className="p-2 bg-white/10 rounded-full hover:bg-white/20 transition"><X className="w-6 h-6"/></button>
-            </div>
-            
-            <div className="relative w-full bg-black rounded-2xl overflow-hidden shadow-2xl border border-white/10 mb-6 aspect-video">
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                className="w-full h-full object-cover"
-              />
-              <canvas ref={canvasRef} className="hidden" />
-              <div className="absolute inset-0 border-2 border-white/30 rounded-2xl pointer-events-none"></div>
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 border-2 border-white/50 rounded-lg pointer-events-none"></div>
-            </div>
-            
-            <div className="flex gap-4 w-full max-w-sm">
-              <button
-                onClick={capturePhoto}
-                className="w-full bg-white text-black font-bold py-4 px-6 rounded-full hover:bg-slate-200 transition-colors flex items-center justify-center gap-2 shadow-lg"
-              >
-                <div className="w-4 h-4 rounded-full bg-red-500 animate-pulse" />
-                Capture Photo
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Footer */}
       <footer className="py-3 bg-green-50 text-slate-600 border-t border-green-100">

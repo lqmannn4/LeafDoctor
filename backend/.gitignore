@@ -27,3 +27,4 @@ ENV/
 diagnoses.csv
 users.csv
 uploads/
+schedules.csv

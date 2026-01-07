@@ -39,6 +39,7 @@ from jose import JWTError, jwt
 SECRET_KEY = os.getenv("SECRET_KEY", "supersecretkey123") # Change in production!
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 3000
+TEMPERATURE = 2.0 # Higher = softer (less confident) predictions
 
 api_key = os.getenv("GEMINI_API_KEY")
 if not api_key:
@@ -50,6 +51,7 @@ genai.configure(api_key=api_key)
 # ==========================================
 USERS_CSV = Path("users.csv")
 DIAGNOSES_CSV = Path("diagnoses.csv")
+SCHEDULES_CSV = Path("schedules.csv")
 
 def init_csvs():
     if not USERS_CSV.exists():
@@ -62,6 +64,11 @@ def init_csvs():
             writer = csv.writer(f)
             writer.writerow(["id", "filename", "disease_name", "confidence", "advice", "timestamp", "user_id"]) # Header
 
+    if not SCHEDULES_CSV.exists():
+        with open(SCHEDULES_CSV, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["id", "diagnosis_id", "user_id", "water_interval_days", "last_watered_date"]) # Header
+
 init_csvs()
 
 def get_next_id(csv_path: Path) -> int:
@@ -71,7 +78,10 @@ def get_next_id(csv_path: Path) -> int:
         if len(data) <= 1:
             return 1
         last_row = data[-1]
-        return int(last_row[0]) + 1
+        try:
+            return int(last_row[0]) + 1
+        except ValueError:
+            return 1 # Fallback if ID is corrupted
 
 # ==========================================
 # 3. AUTH UTILS
@@ -212,6 +222,17 @@ class DiagnosisResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class ScheduleCreate(BaseModel):
+    diagnosis_id: int
+    water_interval_days: int
+
+class ScheduleResponse(BaseModel):
+    id: int
+    diagnosis_id: int
+    user_id: int
+    water_interval_days: int
+    last_watered_date: str
+
 # ==========================================
 # 6. ENDPOINTS
 # ==========================================
@@ -314,6 +335,13 @@ async def predict(
     
     processed = preprocess_image(image)
     preds = keras_model.predict(processed, verbose=0)[0]
+    
+    # Temperature Scaling to soften "100%" predictions
+    # Formula: softmax(log(preds) / T)
+    logits = np.log(preds + 1e-7)
+    softened_preds = np.exp(logits / TEMPERATURE)
+    preds = softened_preds / np.sum(softened_preds)
+    
     top_3_idx = np.argsort(preds)[-3:][::-1]
     
     results = []
@@ -322,7 +350,31 @@ async def predict(
     
     main_disease = results[0]["class_name"]
     confidence_str = f"{results[0]['confidence_score']:.2f}"
-    advice = await generate_advice(main_disease)
+    
+    # --- SANITY CHECK ---
+    # Check if the prediction is realistic or if the model is confused.
+    top_conf = results[0]["confidence_score"]
+    second_conf = results[1]["confidence_score"] if len(results) > 1 else 0.0
+    
+    if top_conf < 0.35:
+        # Confidence too low (given Temperature=2.0, 0.35 is a reasonable threshold)
+        main_disease = "Uncertain Diagnosis"
+        advice = "The AI is not confident in this diagnosis (Confidence < 35%). Please ensure the image is clear, well-lit, and focused on the leaf. Try taking another photo."
+        
+    elif (top_conf - second_conf) < 0.05:
+        # Ambiguous result (model is confused between top 2)
+        main_disease = f"Ambiguous: {main_disease} or {results[1]['class_name']}"
+        advice = f"The model is unsure between {results[0]['class_name']} and {results[1]['class_name']}. Please compare your plant with reference images for both conditions."
+        
+    elif top_conf > 0.99:
+        # Suspiciously perfect (rare with T=2.0)
+        print(f"WARNING: Suspiciously high confidence ({top_conf:.4f}) for {main_disease}")
+        # We still return the result, but maybe with a caveat if desired. 
+        # For now, we assume it's valid but log it.
+        advice = await generate_advice(main_disease)
+    else:
+        # Normal case
+        advice = await generate_advice(main_disease)
     
     if save and token:
         try:
@@ -370,6 +422,89 @@ async def get_my_garden(current_user: dict = Depends(get_current_user)):
                     diagnoses.append(row)
     
     return diagnoses
+
+@app.post("/schedules", response_model=ScheduleResponse)
+async def create_schedule(schedule: ScheduleCreate, current_user: dict = Depends(get_current_user)):
+    user_id = str(current_user["id"])
+    
+    # Check if schedule already exists for this diagnosis
+    rows = []
+    updated = False
+    new_data = None
+    
+    if SCHEDULES_CSV.exists():
+        with open(SCHEDULES_CSV, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if row["diagnosis_id"] == str(schedule.diagnosis_id) and row["user_id"] == user_id:
+                    # Update existing
+                    row["water_interval_days"] = str(schedule.water_interval_days)
+                    # Don't reset last_watered_date if updating interval
+                    new_data = row
+                    updated = True
+                rows.append(row)
+    
+    if updated:
+        with open(SCHEDULES_CSV, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=["id", "diagnosis_id", "user_id", "water_interval_days", "last_watered_date"])
+            writer.writeheader()
+            writer.writerows(rows)
+        return new_data
+
+    # Create new
+    new_id = get_next_id(SCHEDULES_CSV)
+    new_data = {
+        "id": new_id,
+        "diagnosis_id": schedule.diagnosis_id,
+        "user_id": user_id,
+        "water_interval_days": schedule.water_interval_days,
+        "last_watered_date": str(datetime.datetime.utcnow().date())
+    }
+    
+    with open(SCHEDULES_CSV, "a", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow([new_id, schedule.diagnosis_id, user_id, schedule.water_interval_days, new_data["last_watered_date"]])
+        
+    return new_data
+
+@app.get("/schedules", response_model=List[ScheduleResponse])
+async def get_schedules(current_user: dict = Depends(get_current_user)):
+    user_id = str(current_user["id"])
+    schedules = []
+    
+    if SCHEDULES_CSV.exists():
+        with open(SCHEDULES_CSV, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if row["user_id"] == user_id:
+                    schedules.append(row)
+    return schedules
+
+@app.post("/schedules/{diagnosis_id}/water")
+async def water_plant(diagnosis_id: int, current_user: dict = Depends(get_current_user)):
+    user_id = str(current_user["id"])
+    rows = []
+    found = False
+    
+    if SCHEDULES_CSV.exists():
+        with open(SCHEDULES_CSV, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            fieldnames = reader.fieldnames
+            for row in reader:
+                if row["diagnosis_id"] == str(diagnosis_id) and row["user_id"] == user_id:
+                    row["last_watered_date"] = str(datetime.datetime.utcnow().date())
+                    found = True
+                rows.append(row)
+    
+    if not found:
+        raise HTTPException(status_code=404, detail="Schedule not found for this plant")
+        
+    with open(SCHEDULES_CSV, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+        
+    return {"message": "Plant watered!"}
 
 @app.delete("/diagnoses/{diagnosis_id}")
 async def delete_diagnosis(diagnosis_id: int, current_user: dict = Depends(get_current_user)):
