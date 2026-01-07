@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowRight, Leaf, ShieldCheck, CloudSun, Activity, Upload, Stethoscope, Sprout, MessageSquare } from "lucide-react";
+import { ArrowRight, Leaf, ShieldCheck, CloudSun, Activity, Upload, Stethoscope, Sprout, FileText } from "lucide-react";
 
 // Animation variants
 const fadeInUp = {
@@ -176,9 +176,9 @@ export default function Home() {
                 desc: 'Receive immediate organic and chemical treatment steps.' 
               },
               { 
-                icon: MessageSquare, 
-                title: 'Consult AI Expert', 
-                desc: 'Chat with our 24/7 AI assistant for follow-up care and tips.' 
+                icon: FileText, 
+                title: 'Download Report', 
+                desc: 'Obtain a comprehensive PDF report with your plant diagnosis and care steps.' 
               }
             ].map((step, i) => (
               <div key={i} className="flex flex-col items-center text-center p-6 rounded-3xl bg-white/40 border border-transparent hover:border-green-100 hover:bg-white/60 transition-all duration-300">
