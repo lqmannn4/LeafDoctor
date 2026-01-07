@@ -188,6 +188,17 @@ function SidebarFooter() {
     return <CloudSun className="w-8 h-8 text-slate-400" />;
   }
 
+  function getWeatherAdvice(code: number, windspeed: number): { text: string; status: 'good' | 'warning' | 'bad' } {
+    if (windspeed > 20) return { text: "Too windy for spraying.", status: 'bad' };
+    if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) return { text: "Rain likely. Avoid spraying.", status: 'bad' };
+    if (code >= 95 && code <= 99) return { text: "Storm risk. Stay indoors.", status: 'bad' };
+    return { text: "Ideal for field work.", status: 'good' };
+  }
+
+  const advice = (typeof weather === "object" && weather) 
+    ? getWeatherAdvice(weather.weathercode, weather.windspeed) 
+    : { text: "Checking conditions...", status: 'good' };
+
   return (
     <div className="w-full space-y-4">
       {/* Agri-Weather Widget */}
@@ -229,9 +240,12 @@ function SidebarFooter() {
               Wind: {typeof weather === "object" && weather ? `${Math.round(weather.windspeed)} km/h` : "--"}
             </span>
           </div>
-          <div className="flex items-center gap-2 text-xs text-green-600 font-medium ml-auto">
-            <Leaf className="w-4 h-4" />
-            <span>Good Conditions</span>
+          
+          <div className={`flex items-center gap-2 text-xs font-bold ml-auto px-2 py-1 rounded-lg ${
+            advice.status === 'good' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+          }`}>
+            {advice.status === 'good' ? <Leaf className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
+            <span>{advice.text}</span>
           </div>
         </div>
       </div>

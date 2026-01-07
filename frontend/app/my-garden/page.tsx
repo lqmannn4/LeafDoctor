@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Leaf, Calendar, Activity, LogOut, Trash2, Droplets, Clock, CalendarCheck } from "lucide-react";
+import { Leaf, Calendar, Activity, LogOut, Trash2, Droplets, Clock, CalendarCheck, Maximize2, X, Download } from "lucide-react";
+import { jsPDF } from "jspdf";
 
 interface Diagnosis {
   id: number;
@@ -26,6 +27,7 @@ export default function MyGardenPage() {
   const [diagnoses, setDiagnoses] = useState<Diagnosis[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedDiagnosis, setSelectedDiagnosis] = useState<Diagnosis | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -145,6 +147,107 @@ export default function MyGardenPage() {
     }
   };
 
+  const handleDownloadReport = async (diagnosis: Diagnosis) => {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 20;
+    let yPos = 20;
+
+    // Header
+    doc.setFontSize(22);
+    doc.setTextColor(22, 163, 74); // Green-600
+    doc.text("LeafDoctor - Diagnosis History", margin, yPos);
+    yPos += 10;
+
+    // Date
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Recorded on: ${new Date(diagnosis.timestamp).toLocaleString()}`, margin, yPos);
+    yPos += 15;
+
+    doc.setDrawColor(220);
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+    yPos += 15;
+
+    // Fetch Image
+    try {
+        const imageUrl = `http://127.0.0.1:8000/uploads/${encodeURIComponent(diagnosis.filename)}`;
+        const imgRes = await fetch(imageUrl);
+        const imgBlob = await imgRes.blob();
+        
+        const base64Img = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(imgBlob);
+        });
+
+        const imgProps = doc.getImageProperties(base64Img);
+        const pdfWidth = pageWidth - 2 * margin;
+        const maxHeight = 80;
+        let imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
+        let imgWidth = pdfWidth;
+
+        if (imgHeight > maxHeight) {
+            imgHeight = maxHeight;
+            imgWidth = (imgProps.width * imgHeight) / imgProps.height;
+        }
+        
+        const xOffset = margin + (pdfWidth - imgWidth) / 2;
+        const format = diagnosis.filename.toLowerCase().endsWith(".png") ? "PNG" : "JPEG";
+        doc.addImage(base64Img, format, xOffset, yPos, imgWidth, imgHeight);
+        yPos += imgHeight + 15;
+
+    } catch (err) {
+        console.error("Error fetching image for PDF:", err);
+    }
+
+    // Results
+    doc.setFontSize(16);
+    doc.setTextColor(30);
+    doc.setFont("helvetica", "bold");
+    doc.text("Diagnosis Results", margin, yPos);
+    yPos += 10;
+
+    const name = diagnosis.disease_name.replace(/___/g, " - ").replace(/_/g, " ").replace(/\bhealthy\b/gi, "Healthy");
+    const score = Math.round(parseFloat(diagnosis.confidence) * 100);
+
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(50);
+    doc.text(`• ${name}: ${score}% Confidence`, margin + 5, yPos);
+    yPos += 15;
+
+    // Advice
+    if (diagnosis.advice) {
+       doc.setFontSize(16);
+       doc.setFont("helvetica", "bold");
+       doc.setTextColor(30);
+       doc.text("AI Treatment Plan", margin, yPos);
+       yPos += 10;
+       
+       doc.setFontSize(11);
+       doc.setFont("helvetica", "normal");
+       doc.setTextColor(60);
+       
+       const cleanAdvice = diagnosis.advice
+         .replace(/\*\*/g, "")
+         .replace(/\*/g, "•")
+         .replace(/#{1,6}\s?/g, "")
+         .replace(/`/g, "")
+         .trim();
+         
+       const splitText = doc.splitTextToSize(cleanAdvice, pageWidth - 2 * margin);
+       if (yPos + splitText.length * 5 > doc.internal.pageSize.getHeight() - margin) {
+         doc.addPage();
+         yPos = 20;
+       }
+       doc.text(splitText, margin, yPos);
+    }
+    
+    doc.save(`leafdoctor-history-${diagnosis.id}.pdf`);
+  };
+
   const handleLogout = () => {
     localStorage.removeItem("token");
     window.dispatchEvent(new Event("storage"));
@@ -225,10 +328,17 @@ export default function MyGardenPage() {
                         className="object-cover"
                         unoptimized
                       />
-                      <div className="absolute top-2 right-2 px-2 py-1 bg-white/90 backdrop-blur-sm rounded-lg text-xs font-bold text-slate-700 flex items-center gap-1">
+                      <div className="absolute top-2 left-2 px-2 py-1 bg-white/90 backdrop-blur-sm rounded-lg text-xs font-bold text-slate-700 flex items-center gap-1">
                         <Activity className="w-3 h-3 text-green-600" />
                         {Math.round(parseFloat(item.confidence) * 100)}%
                       </div>
+                      <button 
+                        onClick={() => setSelectedDiagnosis(item)}
+                        className="absolute top-2 right-2 p-1.5 bg-black/30 hover:bg-black/50 backdrop-blur-sm rounded-lg text-white transition-colors"
+                        title="View Details"
+                      >
+                        <Maximize2 className="w-4 h-4" />
+                      </button>
                     </div>
                     
                     <div className="p-5 flex-1 flex flex-col">
@@ -258,9 +368,20 @@ export default function MyGardenPage() {
                                     <span className={`text-xs font-bold px-2 py-0.5 rounded-md w-fit mb-1 ${status?.color}`}>
                                         {status?.label}
                                     </span>
-                                    <span className="text-xs text-slate-500">
-                                        Every {schedule.water_interval_days} days
-                                    </span>
+                                    <div className="flex items-center gap-1 mt-1">
+                                      <span className="text-xs text-slate-400">Freq:</span>
+                                      <select 
+                                          className="text-xs font-medium bg-transparent text-slate-600 focus:outline-none cursor-pointer hover:text-green-600 transition-colors"
+                                          value={schedule.water_interval_days}
+                                          onChange={(e) => handleSetSchedule(item.id, parseInt(e.target.value))}
+                                      >
+                                          <option value="1">Daily</option>
+                                          <option value="2">Every 2 Days</option>
+                                          <option value="3">Every 3 Days</option>
+                                          <option value="7">Weekly</option>
+                                          <option value="14">Bi-Weekly</option>
+                                      </select>
+                                    </div>
                                 </div>
                                 <button 
                                     onClick={() => handleWaterPlant(item.id)}
@@ -303,6 +424,64 @@ export default function MyGardenPage() {
           </div>
         )}
       </div>
+
+      {/* Diagnosis Details Modal */}
+      {selectedDiagnosis && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedDiagnosis(null)}>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto relative flex flex-col md:flex-row" onClick={e => e.stopPropagation()}>
+            <button 
+                onClick={() => setSelectedDiagnosis(null)}
+                className="absolute top-4 right-4 p-2 bg-black/10 hover:bg-black/20 rounded-full transition-colors z-10"
+            >
+                <X className="w-5 h-5 text-slate-700" />
+            </button>
+
+            {/* Left: Image */}
+            <div className="w-full md:w-1/2 bg-slate-100 relative min-h-[300px] md:min-h-full">
+                <Image
+                    src={`http://127.0.0.1:8000/uploads/${encodeURIComponent(selectedDiagnosis.filename)}`}
+                    alt={selectedDiagnosis.disease_name}
+                    fill
+                    className="object-cover"
+                    unoptimized
+                />
+            </div>
+
+            {/* Right: Details */}
+            <div className="w-full md:w-1/2 p-8 flex flex-col">
+                <div className="mb-6">
+                    <span className="inline-block px-3 py-1 rounded-full bg-green-100 text-green-700 text-xs font-bold mb-3">
+                        {Math.round(parseFloat(selectedDiagnosis.confidence) * 100)}% Confidence
+                    </span>
+                    <h2 className="text-2xl font-bold text-slate-900 capitalize leading-tight mb-2">
+                        {selectedDiagnosis.disease_name.replace(/___/g, " - ").replace(/_/g, " ")}
+                    </h2>
+                    <p className="text-sm text-slate-500 flex items-center gap-2">
+                        <Calendar className="w-4 h-4" />
+                        Diagnosed on {new Date(selectedDiagnosis.timestamp).toLocaleDateString()}
+                    </p>
+                </div>
+
+                <div className="prose prose-sm text-slate-600 mb-8 flex-1 overflow-y-auto pr-2">
+                    <h4 className="text-slate-900 font-bold mb-2">Treatment Advice</h4>
+                    <div dangerouslySetInnerHTML={{ 
+                        __html: selectedDiagnosis.advice
+                            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Bold
+                            .replace(/\n/g, '<br/>') 
+                    }} />
+                </div>
+
+                <button
+                    onClick={() => handleDownloadReport(selectedDiagnosis)}
+                    className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg shadow-green-100 flex items-center justify-center gap-2 transition-all hover:-translate-y-0.5"
+                >
+                    <Download className="w-5 h-5" />
+                    Download PDF Report
+                </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
