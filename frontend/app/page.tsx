@@ -44,7 +44,7 @@ export default function Home() {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
             </span>
-            AI-Powered Plant Analysis v2.0
+            Advanced Plant Analysis v2.0
           </motion.div>
 
           <motion.h1 
@@ -65,7 +65,7 @@ export default function Home() {
           transition={{ duration: 0.6, delay: 0.2 }}
             className="mt-4 text-xl text-slate-600 max-w-2xl mx-auto mb-10 leading-relaxed"
           >
-            Instantly diagnose diseases for 38+ crop types using advanced AI. 
+            Instantly diagnose diseases for 38+ crop types using advanced technology. 
             Get precision treatment plans and weather insights in seconds.
           </motion.p>
 
@@ -167,7 +167,7 @@ export default function Home() {
               },
               { 
                 icon: Activity, 
-                title: 'AI Analysis', 
+                title: 'Deep Analysis', 
                 desc: 'Our model identifies the specific disease with high precision.' 
               },
               { 

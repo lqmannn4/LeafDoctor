@@ -17,8 +17,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "LeafDoctor - AI Plant Disease Detection",
-  description: "Instant disease diagnosis for 38 different plant types using AI precision",
+  title: "LeafDoctor - Automated Plant Disease Detection",
+  description: "Instant disease diagnosis for 38 different plant types using high precision",
 };
 
 export default function RootLayout({

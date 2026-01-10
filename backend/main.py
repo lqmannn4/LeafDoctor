@@ -191,7 +191,7 @@ CLASS_LABELS = [
 async def load_model():
     global keras_model
     try:
-        keras_model = keras.models.load_model("plantvillage_mobilenet_model.h5")
+        keras_model = keras.models.load_model("plantvillage_mobilenet_model.keras")
         print("Model loaded successfully!")
     except Exception as e:
         print(f"Error loading model: {e}")

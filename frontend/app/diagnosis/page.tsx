@@ -472,7 +472,7 @@ export default function DiagnosisPage() {
        doc.setFontSize(16);
        doc.setFont("helvetica", "bold");
        doc.setTextColor(30);
-       doc.text("AI Treatment Plan", margin, yPos);
+       doc.text("Recommended Treatment Plan", margin, yPos);
        yPos += 10;
        
        doc.setFontSize(11);
@@ -531,7 +531,7 @@ export default function DiagnosisPage() {
       <section className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex-1 pb-12">
         
         <div className="mb-10 text-center">
-            <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight mb-3">AI Diagnosis Studio</h1>
+            <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight mb-3">Digital Diagnosis Studio</h1>
             <p className="text-slate-600 max-w-2xl mx-auto">Upload a clear photo of a plant leaf to get instant disease identification and treatment advice.</p>
         </div>
 
@@ -651,7 +651,7 @@ export default function DiagnosisPage() {
                     </div>
                     <h3 className="text-xl font-bold text-slate-700 mb-2">Ready for Diagnosis</h3>
                     <p className="text-slate-500 max-w-sm">
-                        Upload an image from the panel on the left to begin the AI analysis process.
+                        Upload an image from the panel on the left to begin the automated analysis process.
                     </p>
                  </motion.div>
             ) : (
@@ -752,7 +752,7 @@ export default function DiagnosisPage() {
                                     Treatment Plan
                                 </h3>
                                 <div className="px-2 py-1 bg-white/20 rounded-lg text-xs font-medium backdrop-blur-sm">
-                                    AI Generated
+                                    Analysis Result
                                 </div>
                             </div>
                             

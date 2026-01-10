@@ -13,7 +13,7 @@ interface Message {
 export default function ChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
-    { role: "model", content: "Hi! I'm LeafDoctor AI. How can I help with your garden today?" }
+    { role: "model", content: "Hi! I'm LeafDoctor Assistant. How can I help with your garden today?" }
   ]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);

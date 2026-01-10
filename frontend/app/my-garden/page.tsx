@@ -223,7 +223,7 @@ export default function MyGardenPage() {
        doc.setFontSize(16);
        doc.setFont("helvetica", "bold");
        doc.setTextColor(30);
-       doc.text("AI Treatment Plan", margin, yPos);
+       doc.text("Recommended Treatment Plan", margin, yPos);
        yPos += 10;
        
        doc.setFontSize(11);
