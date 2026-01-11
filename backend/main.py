@@ -156,18 +156,28 @@ CLASS_LABELS = [
 async def load_model():
     global tflite_interpreter, input_details, output_details
     try:
-        # Check if model exists locally (for Render)
-        model_path = "plantvillage_mobilenet_model.tflite"
+        # Use absolute path relative to main.py
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        model_path = os.path.join(current_dir, "plantvillage_mobilenet_model.tflite")
+        
+        print(f"Attempting to load TFLite model from: {model_path}")
+        
         if os.path.exists(model_path):
+            # Log file size to verify it's not empty/corrupted
+            file_size = os.path.getsize(model_path)
+            print(f"Model file found. Size: {file_size} bytes")
+            
             tflite_interpreter = tflite.Interpreter(model_path=model_path)
             tflite_interpreter.allocate_tensors()
             input_details = tflite_interpreter.get_input_details()
             output_details = tflite_interpreter.get_output_details()
             print("TFLite Model loaded successfully!")
         else:
-            print("Model file not found. Prediction will fail.")
+            print(f"Model file NOT found at: {model_path}")
     except Exception as e:
-        print(f"Error loading model: {e}")
+        print(f"Detailed Error loading model: {str(e)}")
+        import traceback
+        traceback.print_exc()
 
 # ==========================================
 # 4. Pydantic Models
