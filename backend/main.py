@@ -149,7 +149,7 @@ async def load_model():
     global keras_model
     try:
         # Check if model exists locally (for Render)
-        model_path = "plantvillage_mobilenet_model.h5"
+        model_path = "plantvillage_mobilenet_model.keras"
         if os.path.exists(model_path):
             keras_model = keras.models.load_model(model_path)
             print("Model loaded successfully!")
