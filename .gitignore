@@ -1,0 +1,14 @@
+node_modules/
+.next/
+__pycache__/
+*.env
+*.env.local
+.DS_Store
+dist/
+build/
+coverage/
+.vscode/
+*.log
+uploads/
+venv/
+.venv/

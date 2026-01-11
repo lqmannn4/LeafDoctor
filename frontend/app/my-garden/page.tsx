@@ -30,6 +30,9 @@ export default function MyGardenPage() {
   const [selectedDiagnosis, setSelectedDiagnosis] = useState<Diagnosis | null>(null);
   const router = useRouter();
 
+  // API URL from env or default
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+
   useEffect(() => {
     const fetchData = async () => {
       const token = localStorage.getItem("token");
@@ -43,8 +46,8 @@ export default function MyGardenPage() {
         
         // Parallel fetch
         const [gardenRes, scheduleRes] = await Promise.all([
-            fetch("http://127.0.0.1:8000/my-garden", { headers }),
-            fetch("http://127.0.0.1:8000/schedules", { headers })
+            fetch(`${API_URL}/my-garden`, { headers }),
+            fetch(`${API_URL}/schedules`, { headers })
         ]);
 
         if (!gardenRes.ok) throw new Error("Failed to fetch garden");
@@ -68,7 +71,7 @@ export default function MyGardenPage() {
     };
 
     fetchData();
-  }, [router]);
+  }, [router, API_URL]);
 
   const handleDelete = async (id: number) => {
     if (!confirm("Are you sure you want to delete this diagnosis?")) return;
@@ -77,7 +80,7 @@ export default function MyGardenPage() {
     if (!token) return;
 
     try {
-      const res = await fetch(`http://127.0.0.1:8000/diagnoses/${id}`, {
+      const res = await fetch(`${API_URL}/diagnoses/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -95,7 +98,7 @@ export default function MyGardenPage() {
     if (!token) return;
     
     try {
-        const res = await fetch("http://127.0.0.1:8000/schedules", {
+        const res = await fetch(`${API_URL}/schedules`, {
             method: "POST",
             headers: { 
                 "Content-Type": "application/json",
@@ -127,7 +130,7 @@ export default function MyGardenPage() {
     if (!token) return;
 
     try {
-        const res = await fetch(`http://127.0.0.1:8000/schedules/${diagnosisId}/water`, {
+        const res = await fetch(`${API_URL}/schedules/${diagnosisId}/water`, {
             method: "POST",
             headers: { Authorization: `Bearer ${token}` }
         });
@@ -171,7 +174,10 @@ export default function MyGardenPage() {
 
     // Fetch Image
     try {
-        const imageUrl = `http://127.0.0.1:8000/uploads/${encodeURIComponent(diagnosis.filename)}`;
+        const imageUrl = diagnosis.filename.startsWith("http") 
+            ? diagnosis.filename 
+            : `${API_URL}/uploads/${encodeURIComponent(diagnosis.filename)}`;
+            
         const imgRes = await fetch(imageUrl);
         const imgBlob = await imgRes.blob();
         
@@ -322,7 +328,7 @@ export default function MyGardenPage() {
                   <div key={item.id} className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden hover:shadow-md transition-shadow flex flex-col">
                     <div className="relative h-48 w-full">
                       <Image
-                        src={`http://127.0.0.1:8000/uploads/${encodeURIComponent(item.filename)}`}
+                        src={item.filename.startsWith("http") ? item.filename : `${API_URL}/uploads/${encodeURIComponent(item.filename)}`}
                         alt={item.disease_name}
                         fill
                         className="object-cover"
@@ -439,7 +445,7 @@ export default function MyGardenPage() {
             {/* Left: Image */}
             <div className="w-full md:w-1/2 bg-slate-100 relative min-h-[300px] md:min-h-full">
                 <Image
-                    src={`http://127.0.0.1:8000/uploads/${encodeURIComponent(selectedDiagnosis.filename)}`}
+                    src={selectedDiagnosis.filename.startsWith("http") ? selectedDiagnosis.filename : `${API_URL}/uploads/${encodeURIComponent(selectedDiagnosis.filename)}`}
                     alt={selectedDiagnosis.disease_name}
                     fill
                     className="object-cover"

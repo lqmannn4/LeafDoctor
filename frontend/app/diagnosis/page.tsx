@@ -325,6 +325,8 @@ export default function DiagnosisPage() {
       } else {
         setError("Please upload an image file.");
       }
+      // Reset the input value so the same file can be selected again
+      e.target.value = "";
     }
   };
 
@@ -342,7 +344,8 @@ export default function DiagnosisPage() {
     
     try {
       const token = localStorage.getItem("token");
-      const url = new URL("http://127.0.0.1:8000/predict");
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+      const url = new URL(`${API_URL}/predict`);
       
       // If user is logged in, tell backend to save
       if (token) {

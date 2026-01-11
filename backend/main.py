@@ -1,7 +1,6 @@
 import os
 import shutil
 import datetime
-import csv
 from typing import Dict, List, Optional
 from pathlib import Path
 from io import BytesIO
@@ -9,11 +8,6 @@ from io import BytesIO
 # --- Environment & Logging ---
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
-try:
-    from absl import logging as absl_logging
-    absl_logging.set_verbosity(absl_logging.ERROR)
-except ImportError:
-    pass
 
 from dotenv import load_dotenv
 env_path = Path(__file__).parent / ".env"
@@ -23,7 +17,6 @@ load_dotenv(dotenv_path=env_path)
 from fastapi import FastAPI, File, UploadFile, HTTPException, Depends, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from tensorflow import keras
 import numpy as np
@@ -32,59 +25,36 @@ import google.generativeai as genai
 
 from passlib.context import CryptContext
 from jose import JWTError, jwt
+from supabase import create_client, Client
 
 # ==========================================
 # 1. CONFIGURATION
 # ==========================================
-SECRET_KEY = os.getenv("SECRET_KEY", "supersecretkey123") # Change in production!
+SECRET_KEY = os.getenv("SECRET_KEY", "supersecretkey123")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 3000
-TEMPERATURE = 2.0 # Higher = softer (less confident) predictions
+TEMPERATURE = 2.0
 
+# Gemini Setup
 api_key = os.getenv("GEMINI_API_KEY")
 if not api_key:
-    raise ValueError("GEMINI_API_KEY environment variable is not set.")
-genai.configure(api_key=api_key)
+    # Warning only, to allow build to pass if just installing dependencies
+    print("WARNING: GEMINI_API_KEY not set.")
+else:
+    genai.configure(api_key=api_key)
+
+# Supabase Setup
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+supabase: Client = None
+if SUPABASE_URL and SUPABASE_KEY:
+    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+else:
+    print("WARNING: SUPABASE_URL or SUPABASE_KEY not set. Database features will fail.")
 
 # ==========================================
-# 2. CSV DATABASE SETUP
-# ==========================================
-USERS_CSV = Path("users.csv")
-DIAGNOSES_CSV = Path("diagnoses.csv")
-SCHEDULES_CSV = Path("schedules.csv")
-
-def init_csvs():
-    if not USERS_CSV.exists():
-        with open(USERS_CSV, "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerow(["id", "email", "hashed_password"]) # Header
-
-    if not DIAGNOSES_CSV.exists():
-        with open(DIAGNOSES_CSV, "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerow(["id", "filename", "disease_name", "confidence", "advice", "timestamp", "user_id"]) # Header
-
-    if not SCHEDULES_CSV.exists():
-        with open(SCHEDULES_CSV, "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerow(["id", "diagnosis_id", "user_id", "water_interval_days", "last_watered_date"]) # Header
-
-init_csvs()
-
-def get_next_id(csv_path: Path) -> int:
-    with open(csv_path, "r", encoding="utf-8") as f:
-        reader = csv.reader(f)
-        data = list(reader)
-        if len(data) <= 1:
-            return 1
-        last_row = data[-1]
-        try:
-            return int(last_row[0]) + 1
-        except ValueError:
-            return 1 # Fallback if ID is corrupted
-
-# ==========================================
-# 3. AUTH UTILS
+# 2. AUTH UTILS
 # ==========================================
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
@@ -106,19 +76,19 @@ def create_access_token(data: dict, expires_delta: Optional[datetime.timedelta] 
     return encoded_jwt
 
 def get_user_by_email(email: str):
-    if not USERS_CSV.exists():
+    if not supabase: return None
+    try:
+        response = supabase.table("users").select("*").eq("email", email).execute()
+        if response.data and len(response.data) > 0:
+            return response.data[0]
         return None
-    with open(USERS_CSV, "r", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if row["email"] == email:
-                return row
-    return None
+    except Exception as e:
+        print(f"DB Error: {e}")
+        return None
 
 async def get_current_user(request: Request):
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
-        print(f"DEBUG: Missing or invalid Authorization header on {request.method} {request.url.path}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
@@ -132,7 +102,6 @@ async def get_current_user(request: Request):
         if email is None:
             raise JWTError("No sub in payload")
     except JWTError as e:
-        print(f"DEBUG: Token validation failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token",
@@ -145,29 +114,17 @@ async def get_current_user(request: Request):
     return user
 
 # ==========================================
-# 4. APP SETUP
+# 3. APP SETUP
 # ==========================================
 app = FastAPI(title="Plant Disease Prediction API")
 
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    if request.method == "DELETE":
-        print(f"DEBUG: Incoming DELETE request to {request.url.path}")
-        print(f"DEBUG: Headers: {dict(request.headers)}")
-    response = await call_next(request)
-    return response
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
+    allow_origins=["*"], # In production, replace with Vercel URL
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-UPLOAD_DIR = Path("uploads")
-UPLOAD_DIR.mkdir(exist_ok=True)
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # Load AI Model
 keras_model = None
@@ -191,13 +148,18 @@ CLASS_LABELS = [
 async def load_model():
     global keras_model
     try:
-        keras_model = keras.models.load_model("plantvillage_mobilenet_model.keras")
-        print("Model loaded successfully!")
+        # Check if model exists locally (for Render)
+        model_path = "plantvillage_mobilenet_model.h5"
+        if os.path.exists(model_path):
+            keras_model = keras.models.load_model(model_path)
+            print("Model loaded successfully!")
+        else:
+            print("Model file not found. Prediction will fail.")
     except Exception as e:
         print(f"Error loading model: {e}")
 
 # ==========================================
-# 5. Pydantic Models
+# 4. Pydantic Models
 # ==========================================
 class UserCreate(BaseModel):
     email: str
@@ -234,20 +196,25 @@ class ScheduleResponse(BaseModel):
     last_watered_date: str
 
 # ==========================================
-# 6. ENDPOINTS
+# 5. ENDPOINTS
 # ==========================================
 
 @app.post("/register", response_model=Token)
 def register(user: UserCreate):
+    if not supabase: raise HTTPException(500, "DB not configured")
     if get_user_by_email(user.email):
         raise HTTPException(status_code=400, detail="Email already registered")
     
     hashed_password = get_password_hash(user.password)
-    new_id = get_next_id(USERS_CSV)
     
-    with open(USERS_CSV, "a", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow([new_id, user.email, hashed_password])
+    try:
+        supabase.table("users").insert({
+            "email": user.email, 
+            "hashed_password": hashed_password
+        }).execute()
+    except Exception as e:
+        print(f"Register Error: {e}")
+        raise HTTPException(500, "Registration failed")
     
     access_token = create_access_token(data={"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
@@ -321,7 +288,7 @@ async def generate_advice(disease_name: str) -> str:
 @app.post("/predict")
 async def predict(
     file: UploadFile = File(...),
-    save: bool = False, # Optional flag to save result
+    save: bool = False,
     token: Optional[str] = None
 ):
     if keras_model is None:
@@ -336,8 +303,7 @@ async def predict(
     processed = preprocess_image(image)
     preds = keras_model.predict(processed, verbose=0)[0]
     
-    # Temperature Scaling to soften "100%" predictions
-    # Formula: softmax(log(preds) / T)
+    # Temperature Scaling
     logits = np.log(preds + 1e-7)
     softened_preds = np.exp(logits / TEMPERATURE)
     preds = softened_preds / np.sum(softened_preds)
@@ -351,58 +317,59 @@ async def predict(
     main_disease = results[0]["class_name"]
     confidence_str = f"{results[0]['confidence_score']:.2f}"
     
-    # --- SANITY CHECK ---
-    # Check if the prediction is realistic or if the model is confused.
+    # Logic
     top_conf = results[0]["confidence_score"]
     second_conf = results[1]["confidence_score"] if len(results) > 1 else 0.0
     
     if top_conf < 0.35:
-        # Confidence too low (given Temperature=2.0, 0.35 is a reasonable threshold)
         main_disease = "Uncertain Diagnosis"
-        advice = "The AI is not confident in this diagnosis (Confidence < 35%). Please ensure the image is clear, well-lit, and focused on the leaf. Try taking another photo."
-        
+        advice = "The AI is not confident. Please ensure image is clear."
     elif (top_conf - second_conf) < 0.05:
-        # Ambiguous result (model is confused between top 2)
         main_disease = f"Ambiguous: {main_disease} or {results[1]['class_name']}"
-        advice = f"The model is unsure between {results[0]['class_name']} and {results[1]['class_name']}. Please compare your plant with reference images for both conditions."
-        
-    elif top_conf > 0.99:
-        # Suspiciously perfect (rare with T=2.0)
-        print(f"WARNING: Suspiciously high confidence ({top_conf:.4f}) for {main_disease}")
-        # We still return the result, but maybe with a caveat if desired. 
-        # For now, we assume it's valid but log it.
-        advice = await generate_advice(main_disease)
+        advice = f"The model is unsure between {results[0]['class_name']} and {results[1]['class_name']}."
     else:
-        # Normal case
         advice = await generate_advice(main_disease)
     
-    if save and token:
+    if save and token and supabase:
         try:
             payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
             email = payload.get("sub")
             user = get_user_by_email(email)
             
             if user:
+                # 1. Upload to Supabase Storage
                 safe_filename = file.filename.replace(" ", "_")
-                filename = f"{datetime.datetime.utcnow().timestamp()}_{safe_filename}"
-                filepath = UPLOAD_DIR / filename
-                with open(filepath, "wb") as f:
-                    f.write(contents) 
+                file_path = f"{user['id']}/{datetime.datetime.utcnow().timestamp()}_{safe_filename}"
                 
-                new_id = get_next_id(DIAGNOSES_CSV)
-                timestamp = str(datetime.datetime.utcnow())
+                # Reset file pointer for upload
+                file.file.seek(0)
+                file_bytes = await file.read()
                 
-                with open(DIAGNOSES_CSV, "a", newline="", encoding="utf-8") as f:
-                    writer = csv.writer(f)
-                    writer.writerow([
-                        new_id, 
-                        filename, 
-                        main_disease, 
-                        confidence_str, 
-                        advice.replace("\n", " "),
-                        timestamp, 
-                        user["id"]
-                    ])
+                try:
+                    supabase.storage.from_("plant-images").upload(
+                        path=file_path,
+                        file=file_bytes,
+                        file_options={"content-type": file.content_type}
+                    )
+                    
+                    # 2. Get Public URL
+                    public_url = supabase.storage.from_("plant-images").get_public_url(file_path)
+                    
+                    # 3. Save to DB
+                    timestamp = str(datetime.datetime.utcnow())
+                    supabase.table("diagnoses").insert({
+                        "user_id": user["id"],
+                        "filename": public_url, # Store full URL!
+                        "disease_name": main_disease,
+                        "confidence": confidence_str,
+                        "advice": advice,
+                        "timestamp": timestamp
+                    }).execute()
+                    
+                except Exception as storage_err:
+                    print(f"Storage/DB Error: {storage_err}")
+                    pass
+
         except Exception as e:
             print(f"SAVE ERROR: {e}")
             pass
@@ -411,136 +378,98 @@ async def predict(
 
 @app.get("/my-garden", response_model=List[DiagnosisResponse])
 async def get_my_garden(current_user: dict = Depends(get_current_user)):
-    user_id = str(current_user["id"])
-    diagnoses = []
-    
-    if DIAGNOSES_CSV.exists():
-        with open(DIAGNOSES_CSV, "r", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                if row["user_id"] == user_id:
-                    diagnoses.append(row)
-    
-    return diagnoses
+    if not supabase: return []
+    try:
+        response = supabase.table("diagnoses").select("*").eq("user_id", current_user["id"]).execute()
+        return response.data
+    except Exception as e:
+        print(f"Fetch Error: {e}")
+        return []
 
 @app.post("/schedules", response_model=ScheduleResponse)
 async def create_schedule(schedule: ScheduleCreate, current_user: dict = Depends(get_current_user)):
-    user_id = str(current_user["id"])
+    if not supabase: raise HTTPException(500, "DB Error")
+    user_id = current_user["id"]
     
-    # Check if schedule already exists for this diagnosis
-    rows = []
-    updated = False
-    new_data = None
-    
-    if SCHEDULES_CSV.exists():
-        with open(SCHEDULES_CSV, "r", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                if row["diagnosis_id"] == str(schedule.diagnosis_id) and row["user_id"] == user_id:
-                    # Update existing
-                    row["water_interval_days"] = str(schedule.water_interval_days)
-                    # Don't reset last_watered_date if updating interval
-                    new_data = row
-                    updated = True
-                rows.append(row)
-    
-    if updated:
-        with open(SCHEDULES_CSV, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=["id", "diagnosis_id", "user_id", "water_interval_days", "last_watered_date"])
-            writer.writeheader()
-            writer.writerows(rows)
-        return new_data
-
-    # Create new
-    new_id = get_next_id(SCHEDULES_CSV)
-    new_data = {
-        "id": new_id,
-        "diagnosis_id": schedule.diagnosis_id,
-        "user_id": user_id,
-        "water_interval_days": schedule.water_interval_days,
-        "last_watered_date": str(datetime.datetime.utcnow().date())
-    }
-    
-    with open(SCHEDULES_CSV, "a", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow([new_id, schedule.diagnosis_id, user_id, schedule.water_interval_days, new_data["last_watered_date"]])
+    # Check existing
+    try:
+        existing = supabase.table("schedules").select("*").eq("diagnosis_id", schedule.diagnosis_id).eq("user_id", user_id).execute()
         
-    return new_data
+        if existing.data and len(existing.data) > 0:
+            # Update
+            row_id = existing.data[0]["id"]
+            res = supabase.table("schedules").update({
+                "water_interval_days": schedule.water_interval_days
+            }).eq("id", row_id).execute()
+            return res.data[0]
+        else:
+            # Create
+            res = supabase.table("schedules").insert({
+                "diagnosis_id": schedule.diagnosis_id,
+                "user_id": user_id,
+                "water_interval_days": schedule.water_interval_days,
+                "last_watered_date": str(datetime.datetime.utcnow().date())
+            }).execute()
+            return res.data[0]
+    except Exception as e:
+        print(f"Schedule Error: {e}")
+        raise HTTPException(500, "Failed to save schedule")
 
 @app.get("/schedules", response_model=List[ScheduleResponse])
 async def get_schedules(current_user: dict = Depends(get_current_user)):
-    user_id = str(current_user["id"])
-    schedules = []
-    
-    if SCHEDULES_CSV.exists():
-        with open(SCHEDULES_CSV, "r", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                if row["user_id"] == user_id:
-                    schedules.append(row)
-    return schedules
+    if not supabase: return []
+    try:
+        response = supabase.table("schedules").select("*").eq("user_id", current_user["id"]).execute()
+        return response.data
+    except Exception as e:
+        return []
 
 @app.post("/schedules/{diagnosis_id}/water")
 async def water_plant(diagnosis_id: int, current_user: dict = Depends(get_current_user)):
-    user_id = str(current_user["id"])
-    rows = []
-    found = False
-    
-    if SCHEDULES_CSV.exists():
-        with open(SCHEDULES_CSV, "r", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            fieldnames = reader.fieldnames
-            for row in reader:
-                if row["diagnosis_id"] == str(diagnosis_id) and row["user_id"] == user_id:
-                    row["last_watered_date"] = str(datetime.datetime.utcnow().date())
-                    found = True
-                rows.append(row)
-    
-    if not found:
-        raise HTTPException(status_code=404, detail="Schedule not found for this plant")
+    if not supabase: raise HTTPException(500, "DB Error")
+    try:
+        # Find schedule
+        existing = supabase.table("schedules").select("*").eq("diagnosis_id", diagnosis_id).eq("user_id", current_user["id"]).execute()
+        if not existing.data:
+            raise HTTPException(404, "Schedule not found")
         
-    with open(SCHEDULES_CSV, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)
-        
-    return {"message": "Plant watered!"}
+        row_id = existing.data[0]["id"]
+        today = str(datetime.datetime.utcnow().date())
+        supabase.table("schedules").update({"last_watered_date": today}).eq("id", row_id).execute()
+        return {"message": "Plant watered!"}
+    except Exception as e:
+        print(e)
+        raise HTTPException(500, "Update failed")
 
 @app.delete("/diagnoses/{diagnosis_id}")
 async def delete_diagnosis(diagnosis_id: int, current_user: dict = Depends(get_current_user)):
-    user_id = str(current_user["id"])
-    rows = []
-    found = False
-    filename_to_delete = None
-
-    if DIAGNOSES_CSV.exists():
-        with open(DIAGNOSES_CSV, "r", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            fieldnames = reader.fieldnames
-            for row in reader:
-                if row["id"] == str(diagnosis_id) and row["user_id"] == user_id:
-                    found = True
-                    filename_to_delete = row["filename"]
-                else:
-                    rows.append(row)
+    if not supabase: raise HTTPException(500, "DB Error")
     
-    if not found:
-        raise HTTPException(status_code=404, detail="Diagnosis not found or unauthorized")
+    try:
+        # Get diagnosis to find file path
+        # Note: diagnosis_id might be int, ensure DB matches
+        diag = supabase.table("diagnoses").select("*").eq("id", diagnosis_id).eq("user_id", current_user["id"]).execute()
+        
+        if not diag.data:
+            raise HTTPException(404, "Not found")
+            
+        record = diag.data[0]
+        # Filename is now a full URL: https://.../public/plant-images/USER_ID/TIMESTAMP_NAME
+        # We need to extract the path after 'plant-images/'
+        
+        if "plant-images" in record["filename"]:
+            # Splitting by 'plant-images/' is a safe bet for standard Supabase URLs
+            file_path = record["filename"].split("plant-images/")[-1]
+            # Remove file from storage
+            supabase.storage.from_("plant-images").remove(file_path)
 
-    with open(DIAGNOSES_CSV, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)
-
-    if filename_to_delete:
-        file_path = UPLOAD_DIR / filename_to_delete
-        if file_path.exists():
-            try:
-                os.remove(file_path)
-            except Exception as e:
-                print(f"Error deleting file {file_path}: {e}")
-
-    return {"message": "Diagnosis deleted successfully"}
+        # Remove from DB
+        supabase.table("diagnoses").delete().eq("id", diagnosis_id).execute()
+        return {"message": "Deleted"}
+        
+    except Exception as e:
+        print(f"Delete Error: {e}")
+        raise HTTPException(500, "Delete failed")
 
 @app.get("/health")
 async def health():
@@ -548,4 +477,4 @@ async def health():
 
 @app.get("/")
 async def root():
-    return {"message": "API is running (CSV Backend)"}
+    return {"message": "API is running (Supabase Backend)"}
