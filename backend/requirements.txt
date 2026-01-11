@@ -1,8 +1,9 @@
 fastapi
 uvicorn[standard]
-tensorflow-cpu==2.15.0
+tensorflow
+tf-keras
 pillow
-numpy<2.0.0
+numpy
 google-generativeai
 python-dotenv
 sqlalchemy
