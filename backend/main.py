@@ -18,7 +18,7 @@ from fastapi import FastAPI, File, UploadFile, HTTPException, Depends, status, R
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
-from tensorflow import keras
+import tf_keras as keras
 import numpy as np
 from PIL import Image
 import google.generativeai as genai
