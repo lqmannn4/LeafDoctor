@@ -18,7 +18,13 @@ from fastapi import FastAPI, File, UploadFile, HTTPException, Depends, status, R
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
-from tensorflow import keras
+try:
+    import tflite_runtime.interpreter as tflite
+except ImportError:
+    try:
+        from tensorflow import lite as tflite
+    except ImportError:
+        tflite = None
 import numpy as np
 from PIL import Image
 import google.generativeai as genai
@@ -127,7 +133,9 @@ app.add_middleware(
 )
 
 # Load AI Model
-keras_model = None
+tflite_interpreter = None
+input_details = None
+output_details = None
 CLASS_LABELS = [
     "Apple___Apple_scab", "Apple___Black_rot", "Apple___Cedar_apple_rust", "Apple___healthy",
     "Blueberry___healthy", "Cherry_(including_sour)___Powdery_mildew", "Cherry_(including_sour)___healthy",
@@ -146,13 +154,16 @@ CLASS_LABELS = [
 
 @app.on_event("startup")
 async def load_model():
-    global keras_model
+    global tflite_interpreter, input_details, output_details
     try:
         # Check if model exists locally (for Render)
-        model_path = "plantvillage_mobilenet_model.keras"
+        model_path = "plantvillage_mobilenet_model.tflite"
         if os.path.exists(model_path):
-            keras_model = keras.models.load_model(model_path)
-            print("Model loaded successfully!")
+            tflite_interpreter = tflite.Interpreter(model_path=model_path)
+            tflite_interpreter.allocate_tensors()
+            input_details = tflite_interpreter.get_input_details()
+            output_details = tflite_interpreter.get_output_details()
+            print("TFLite Model loaded successfully!")
         else:
             print("Model file not found. Prediction will fail.")
     except Exception as e:
@@ -291,7 +302,7 @@ async def predict(
     save: bool = False,
     token: Optional[str] = None
 ):
-    if keras_model is None:
+    if tflite_interpreter is None:
         raise HTTPException(status_code=500, detail="Model not loaded")
     
     contents = await file.read()
@@ -301,7 +312,11 @@ async def predict(
         raise HTTPException(status_code=400, detail="Invalid Image: Not a plant.")
     
     processed = preprocess_image(image)
-    preds = keras_model.predict(processed, verbose=0)[0]
+    
+    # TFLite Inference
+    tflite_interpreter.set_tensor(input_details[0]['index'], processed)
+    tflite_interpreter.invoke()
+    preds = tflite_interpreter.get_tensor(output_details[0]['index'])[0]
     
     # Temperature Scaling
     logits = np.log(preds + 1e-7)

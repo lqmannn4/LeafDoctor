@@ -1,6 +1,6 @@
 fastapi
 uvicorn[standard]
-tensorflow>=2.16.1
+tflite-runtime
 pillow
 numpy
 google-generativeai
